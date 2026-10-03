@@ -22,6 +22,15 @@ MULTI_LABEL_SUFFIXES = {
     "s3.amazonaws.com", "r2.dev", "ngrok.io", "ngrok-free.app", "trycloudflare.com",
 }
 
+# Platforms that hand out subdomains or tunnels to anyone, for free.
+FREE_HOSTING = {
+    "github.io", "gitlab.io", "herokuapp.com", "blogspot.com", "azurewebsites.net", "web.app",
+    "firebaseapp.com", "pages.dev", "workers.dev", "netlify.app", "vercel.app", "appspot.com",
+    "glitch.me", "repl.co", "weebly.com", "wixsite.com", "000webhostapp.com", "s3.amazonaws.com",
+    "r2.dev", "ngrok.io", "ngrok-free.app", "trycloudflare.com", "sites.google.com",
+    "storage.googleapis.com", "forms.gle",
+}
+
 # Brand -> (names that may appear in display names / URLs, legitimate domains).
 # The first legitimate domain is the one reported as "imitated".
 BRANDS: dict[str, tuple[list[str], list[str]]] = {
@@ -179,7 +188,7 @@ def legit_brand_for(domain: str) -> str | None:
     return None
 
 
-def _brand_tokens():
+def brand_tokens():
     for brand, (names, legit) in BRANDS.items():
         for name in names:
             yield brand, name.replace(" ", ""), legit[0]
@@ -200,7 +209,7 @@ def lookalike_of(domain: str) -> str | None:
     norm = skeleton(label)
     tokens = [t for t in re.split(r"[-_.]", norm) if t]
 
-    for brand, token, primary in _brand_tokens():
+    for brand, token, primary in brand_tokens():
         if norm == token:
             return primary
         if token in tokens and len(tokens) > 1:
