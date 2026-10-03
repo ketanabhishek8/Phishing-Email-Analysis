@@ -12,6 +12,7 @@ import zipfile
 
 from .models import Finding, Severity
 from .parser import ParsedEmail
+from .textsafe import BIDI_CONTROLS
 
 CATEGORY = "attachments"
 
@@ -46,7 +47,8 @@ BIDI_CONTROLS = re.compile("[‪-‮⁦-⁩‎‏]")
 _SMUGGLING = re.compile(rb"(?i)(atob\s*\(|new\s+Blob|createObjectURL|msSaveOrOpenBlob|\.download\s*=|"
                         rb"fromCharCode|unescape\s*\(|base64,)")
 _SCRIPT = re.compile(rb"(?i)<script")
-_PASSWORD_FORM = re.compile(rb"(?i)<form[\s\S]*?type\s*=\s*['\"]?password")
+_FORM_TAG = re.compile(rb"(?i)<form\b")
+_PASSWORD_INPUT = re.compile(rb"(?i)type\s*=\s*['\"]?password")
 _PDF_ACTIVE = re.compile(rb"/(JavaScript|JS|Launch|OpenAction|EmbeddedFile)\b")
 
 
@@ -64,7 +66,7 @@ def detect_type(payload: bytes) -> str:
     if head.startswith(b"PK\x03\x04") or head.startswith(b"PK\x05\x06"):
         try:
             names = zipfile.ZipFile(io.BytesIO(payload)).namelist()
-        except zipfile.BadZipFile:
+        except Exception:  # malformed archives raise many different errors; never crash on them
             return "zip"
         return "ooxml" if "[Content_Types].xml" in names else "zip"
     if head.startswith(b"Rar!\x1a\x07"):
@@ -106,7 +108,7 @@ def _zip_info(payload: bytes) -> tuple[list[str], bool]:
     try:
         zf = zipfile.ZipFile(io.BytesIO(payload))
         infos = zf.infolist()
-    except (zipfile.BadZipFile, ValueError, OSError):
+    except Exception:  # BadZipFile, NotImplementedError, UnicodeDecodeError, ...
         return [], False
     return [i.filename for i in infos][:50], any(i.flag_bits & 0x1 for i in infos)
 
@@ -183,7 +185,7 @@ def _analyze_one(filename: str, content_type: str, payload: bytes) -> tuple[dict
             add("html_smuggling", Severity.HIGH, "HTML smuggling attachment",
                 "The HTML file contains script that builds a file in the browser (atob/Blob/download). "
                 "This assembles malware on the victim's machine, past the email gateway.")
-        if _PASSWORD_FORM.search(payload):
+        if _FORM_TAG.search(payload) and _PASSWORD_INPUT.search(payload):
             add("credential_form", Severity.HIGH, "HTML attachment contains a login form",
                 "A local HTML page with a password field is a credential-harvesting page that runs "
                 "from the victim's disk, so URL filters never see it.")

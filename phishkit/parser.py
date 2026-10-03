@@ -100,7 +100,7 @@ def _decode_text(part: Message) -> str:
         for charset in (part.get_content_charset() or "", "utf-8", "latin-1"):
             try:
                 return payload.decode(charset or "utf-8")
-            except (LookupError, UnicodeDecodeError):
+            except (LookupError, UnicodeDecodeError, ValueError, TypeError):
                 continue
         return payload.decode("utf-8", "replace")
 

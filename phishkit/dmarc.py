@@ -12,11 +12,12 @@ def parse_record(record: str) -> dict:
         key, sep, value = part.strip().partition("=")
         if sep:
             tags[key.strip().lower()] = value.strip()
-    tags.setdefault("adkim", "r")
-    tags.setdefault("aspf", "r")
-    tags.setdefault("pct", "100")
+    # Tag values are case-insensitive (RFC 7489 section 6.4), e.g. "p=REJECT; adkim=S".
     tags["p"] = tags.get("p", "none").lower()
-    tags.setdefault("sp", tags["p"])
+    tags["sp"] = tags.get("sp", tags["p"]).lower()
+    tags["adkim"] = tags.get("adkim", "r").lower()
+    tags["aspf"] = tags.get("aspf", "r").lower()
+    tags.setdefault("pct", "100")
     return tags
 
 
@@ -50,6 +51,8 @@ def fetch_policy(from_domain: str, resolver) -> dict | None:
             policy["domain"] = candidate
             policy["record"] = record
             policy["inherited"] = candidate != domain
+            # A subdomain that inherits its parent's record is governed by sp=, not p=.
+            policy["effective"] = policy["sp"] if policy["inherited"] else policy["p"]
             return policy
     return None
 

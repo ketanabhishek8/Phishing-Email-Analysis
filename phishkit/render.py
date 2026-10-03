@@ -5,6 +5,7 @@ from __future__ import annotations
 import textwrap
 
 from .models import Report
+from .textsafe import for_terminal
 
 _COLORS = {
     "critical": "\x1b[1;97;41m", "high": "\x1b[1;31m", "medium": "\x1b[33m", "low": "\x1b[36m",
@@ -29,7 +30,27 @@ def _result_style(result: str) -> str:
     return "pass" if result == "pass" else "fail" if result in ("fail", "softfail") else "dim"
 
 
+def _sanitize(value):
+    """Recursively neutralise control and invisible characters in email-derived data."""
+    if isinstance(value, str):
+        return for_terminal(value)
+    if isinstance(value, dict):
+        return {k: _sanitize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize(v) for v in value]
+    return value
+
+
+class _Finding:
+    def __init__(self, d: dict):
+        self.title, self.detail, self.evidence = d["title"], d["detail"], d["evidence"]
+        self.label = d["severity"]
+
+
 def render_text(report: Report, color: bool = True) -> str:
+    """Render the report. Every string from the email is sanitised first, so escape
+    sequences or bidi tricks inside the email cannot rewrite the analyst's terminal."""
+    data = _sanitize(report.to_dict())
     p = _Painter(color)
     lines: list[str] = []
 
@@ -43,25 +64,26 @@ def render_text(report: Report, color: bool = True) -> str:
             lines.append(f"  {label:<13} {wrapped[0]}")
             lines.extend(f"  {'':<13} {w}" for w in wrapped[1:])
 
-    bar = "█" * (report.score // 5) + "░" * (20 - report.score // 5)
+    score, verdict = data["score"], data["verdict"]
+    bar = "█" * (score // 5) + "░" * (20 - score // 5)
     lines.append(p("PhishKit report", "bold"))
-    lines.append(f"Verdict: {p(report.verdict, report.verdict)}   Risk score: {report.score}/100  {bar}")
+    lines.append(f"Verdict: {p(verdict, verdict)}   Risk score: {score}/100  {bar}")
 
     heading("Summary")
-    s = report.summary
+    s = data["summary"]
     for label, key in (("Subject", "subject"), ("From", "from"), ("To", "to"), ("Date", "date"),
                        ("Message-ID", "message_id")):
         field(label, s.get(key, ""))
 
     heading("Authentication")
-    rec = report.auth.get("recorded", {})
-    if report.auth.get("authserv_id"):
-        field("Checked by", report.auth["authserv_id"])
+    rec = data["auth"].get("recorded", {})
+    if data["auth"].get("authserv_id"):
+        field("Checked by", data["auth"]["authserv_id"])
     for method in ("spf", "dkim", "dmarc"):
         entry = rec.get(method, {})
         result = entry.get("result", "none")
         lines.append(f"  {method.upper():<13} {p(result, _result_style(result))}  {p(entry.get('detail', ''), 'dim')}")
-    live = report.auth.get("live")
+    live = data["auth"].get("live")
     if live:
         lines.append(p("  Live DNS re-check:", "bold"))
         field("Origin IP", live.get("ip") or "unknown")
@@ -74,12 +96,12 @@ def render_text(report: Report, color: bool = True) -> str:
             lines.append(f"  {'DKIM':<13} {p('none', 'dim')}  {p('no DKIM-Signature header', 'dim')}")
         d = live["dmarc"]
         pol = d.get("policy") or {}
-        policy_text = f" policy p={pol['p']}" if pol else ""
+        policy_text = f" policy {'sp' if pol.get('inherited') else 'p'}={pol.get('effective', pol['p'])}" if pol else ""
         lines.append(f"  {'DMARC':<13} {p(d['result'], _result_style(d['result']))}  "
                      f"{p(d['detail'] + policy_text, 'dim')}")
 
     heading("Sender")
-    sd = report.senders
+    sd = data["senders"]
     field("From", f"{sd.get('from_name', '')} <{sd.get('from_address', '')}>".strip())
     field("Reply-To", sd.get("reply_to", ""))
     field("Return-Path", sd.get("return_path", ""))
@@ -87,18 +109,18 @@ def render_text(report: Report, color: bool = True) -> str:
     if sd.get("lookalike"):
         field("Imitates", sd["lookalike"])
 
-    heading(f"URLs ({len(report.urls)})")
-    if not report.urls:
+    heading(f"URLs ({len(data["urls"])})")
+    if not data["urls"]:
         lines.append(p("  none", "dim"))
-    for u in report.urls:
+    for u in data["urls"]:
         flags = ", ".join(u.get("flags") or []) or "no flags"
         lines.append(f"  • {u['defanged']}")
         lines.append(p(f"      {flags}", "dim" if not u.get("flags") else "medium"))
 
-    heading(f"Attachments ({len(report.attachments)})")
-    if not report.attachments:
+    heading(f"Attachments ({len(data["attachments"])})")
+    if not data["attachments"]:
         lines.append(p("  none", "dim"))
-    for a in report.attachments:
+    for a in data["attachments"]:
         lines.append(f"  • {a['filename']}  ({a['size']} bytes, detected: {a['detected_type']})")
         lines.append(f"      MD5     {a['md5']}")
         lines.append(f"      SHA1    {a['sha1']}")
@@ -109,12 +131,13 @@ def render_text(report: Report, color: bool = True) -> str:
             vt = a["vt"]
             lines.append(f"      VirusTotal: {vt['malicious']} malicious / {vt['suspicious']} suspicious")
 
-    heading(f"Findings ({len(report.findings)})")
-    if not report.findings:
+    findings = [_Finding(f) for f in data["findings"]]
+    heading(f"Findings ({len(findings)})")
+    if not findings:
         lines.append(p("  nothing suspicious found", "dim"))
-    for f in report.findings:
-        label = f.severity.label.upper()
-        lines.append(f"  {p(f'[{label}]', f.severity.label)} {p(f.title, 'bold')}")
+    for f in findings:
+        label = f.label.upper()
+        lines.append(f"  {p(f'[{label}]', f.label)} {p(f.title, 'bold')}")
         for w in textwrap.wrap(f.detail, WIDTH - 6):
             lines.append(f"      {w}")
         if f.evidence:

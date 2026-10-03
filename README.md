@@ -11,9 +11,9 @@ a **command-line tool** and as a **local web app** with a dashboard of past anal
 
 | Area | Checks |
 |---|---|
-| **SPF / DKIM / DMARC** | Parses the `Authentication-Results`, `ARC-Authentication-Results` and `Received-SPF` headers stamped by the receiving server, trusting only the topmost one, which an attacker cannot forge. Optional `--live` mode re-verifies against DNS: it evaluates SPF for the originating IP, cryptographically re-verifies DKIM signatures, and fetches the DMARC policy and checks alignment. |
-| **Sender mismatches** | From vs Reply-To, Return-Path, Sender and Message-ID domains. Display names that impersonate a brand (`"PayPal" <x@evil.ru>`) or embed another address. Lookalike domains (`paypa1`, `rnicrosoft`, punycode homoglyphs, `brand-secure-login`). Free webmail posing as an internal team. |
-| **Suspicious URLs** | Extracted from text and HTML (`<a>`, forms, meta refresh, iframes). Flags link text that shows a different domain, raw IPs, punycode, lookalikes, brands in subdomains (`paypal.com.evil.test`), `@` tricks, shorteners, free hosting and tunnels, high-abuse TLDs, `javascript:`/`data:` links and HTML forms. Every URL is **defanged** (`hxxps://evil[.]com`). |
+| **SPF / DKIM / DMARC** | Parses the `Authentication-Results` header stamped by the receiving server, trusting only the topmost one (lower copies could have been written by the sender). `ARC-Authentication-Results` and `Received-SPF` headers are shown as unverified claims unless a receiver-stamped result is present, because a sender can write them too. Optional `--live` mode re-verifies against DNS: it evaluates SPF for the originating IP, cryptographically re-verifies DKIM signatures, and fetches the DMARC policy and checks alignment. |
+| **Sender mismatches** | From vs Reply-To, Return-Path, Sender and Message-ID domains. Display names that impersonate a brand (`"PayPal" <x@evil.ru>`) or embed another address. Lookalike domains (`paypa1`, `rnicrosoft`, punycode homoglyphs, `brand-secure-login`). Free webmail posing as an internal team. Invisible text-direction characters in headers. |
+| **Suspicious URLs** | Extracted from text and HTML (`<a>`, forms, meta refresh, iframes, remote images), interpreting odd spellings the way a browser does (`//host`, `https:\\host`). Flags link text that shows a different domain, raw IPs, punycode, lookalikes, brands in subdomains (`paypal.com.evil.test`), `@` tricks, shorteners, free hosting and tunnels, high-abuse TLDs, `javascript:`/`data:` links and HTML forms. Every URL is **defanged** (`hxxps://evil[.]com`). |
 | **Attachments** | MD5, SHA1 and SHA256. The real file type is identified from magic bytes and compared with the extension. Flags double extensions (`invoice.pdf.exe`), right-to-left-override filenames, executables and scripts, ISO/IMG containers, macro-enabled Office files (OOXML `vbaProject.bin` and OLE2), encrypted or risky archives, HTML smuggling and credential-form attachments, and PDFs with active content. |
 | **Threat intel (optional)** | `--vt` looks up attachment hashes and URLs on VirusTotal when `VT_API_KEY` is set. Only hashes and URLs are sent, never the email. |
 
@@ -102,6 +102,7 @@ stops cleanly and says so when it hits the limit.
 `samples/` contains six emails modelled on real techniques. All attacker infrastructure uses
 reserved names (`.test`, `.example`, RFC 2606) and documentation IP ranges (RFC 5737). The
 "malicious" attachments are inert stand-ins, such as a Word file containing a dummy macro part.
+Free-webmail addresses in the fraud samples use obviously fictional `phishkit-sample-…` mailbox names.
 Two links use real platforms (a random `web.app` subdomain and a `bit.ly` path) because the
 free-hosting and shortener checks need them; they point at nothing.
 Regenerate them with `python scripts/make_samples.py`.
@@ -149,9 +150,19 @@ tests replace it with an in-memory resolver.
 
 - The email's HTML is **never rendered**. It is shown only as escaped source, with Jinja autoescaping on.
 - URLs, hosts and link text from the email are defanged and never emitted as links.
+- Invisible characters (right-to-left overrides, zero-width characters) are shown as visible
+  `<U+202E>` markers, so a disguised filename like `invoice‮fdp.exe` is shown as it really is.
+  In the CLI, terminal escape sequences from the email are neutralised so they cannot rewrite
+  the report on screen.
 - A strict Content-Security-Policy is applied (`default-src 'self'`, no inline script, no external assets), along with `X-Frame-Options: DENY`, `nosniff` and `no-referrer`.
-- Every form post carries a CSRF token. The JSON API is stateless, so a cross-site request cannot write to the database.
-- Uploads are capped at 10 MB, read in memory and never written to disk. Attachments are never executed.
+- Every form post carries a CSRF token. POSTs from other websites (foreign `Origin`) are refused,
+  so a malicious page cannot drive the local API, and only `localhost` Host headers are served,
+  which blocks DNS-rebinding attacks. The JSON API is stateless and never writes to the database.
+- Uploads are capped at 10 MB and buffered in memory, never spooled to a temporary file.
+  Attachments are hashed in memory and never written to disk or executed. Saved reports keep
+  a preview of the body text in the local SQLite database.
+- Every analysis module runs behind a guard: malformed input that trips one check becomes an
+  "analysis failed" note in the report instead of a crash.
 - The web app binds to `127.0.0.1` only.
 - Network access happens only when asked for (`--live`, `--vt`).
 
@@ -161,9 +172,11 @@ tests replace it with an in-memory resolver.
 python -m unittest discover -s tests -t . -v
 ```
 
-148 tests run fully offline. They include an SPF evaluator test matrix (include
+188 tests run fully offline. They include an SPF evaluator test matrix (include
 chains, redirect, loops, the lookup limit, timeouts), real DKIM sign-and-verify with a
-throwaway key, Flask route and escaping tests, and end-to-end verdicts for every sample.
+throwaway key, Flask route and escaping tests, hostile-input regression tests (malformed
+archives, broken charsets, terminal escape sequences, quadratic-time inputs), and end-to-end
+verdicts for every sample.
 
 ## Limitations
 
@@ -175,6 +188,8 @@ throwaway key, Flask route and escaping tests, and end-to-end verdicts for every
 - The live DKIM check fails on old emails if the sender has since rotated keys; this is
   reported as "key unavailable", not as a failure.
 - Organisational-domain logic uses a built-in subset of the Public Suffix List.
+- ARC chains are not cryptographically verified (no ARC-Seal validation), so ARC results are
+  only ever shown as unverified claims.
 - The SPF evaluator does not support the `exists` and `ptr` mechanisms or macros; such records
   evaluate to `neutral` with a note.
 - Microsoft 365 rewrites Message-IDs, so the "Message-ID domain differs" check (low weight) is

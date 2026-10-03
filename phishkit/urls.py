@@ -76,9 +76,38 @@ def defang(url: str) -> str:
 
 
 def _clean_text_url(url: str) -> str:
-    url = url.rstrip(_TRAILING)
-    while url.endswith(")") and url.count(")") > url.count("("):
-        url = url[:-1].rstrip(_TRAILING)
+    """Drop trailing punctuation and unbalanced closing parentheses, in linear time."""
+    opens, closes = url.count("("), url.count(")")
+    end = len(url)
+    while end:
+        ch = url[end - 1]
+        if ch in _TRAILING:
+            end -= 1
+        elif ch == ")" and closes > opens:
+            closes -= 1
+            end -= 1
+        else:
+            break
+    return url[:end]
+
+
+_STRIP_INSIDE = re.compile(r"[\t\n\r]")
+_SPECIAL_SCHEME = re.compile(r"(?i)^(https?|ftp|wss?):[\\/]*")
+
+
+def normalise_url(url: str) -> str:
+    """Interpret an href the way a browser would (WHATWG URL rules, simplified).
+
+    Browsers drop tabs and newlines anywhere, treat backslashes as slashes, accept
+    'https:/host' and 'https:host', and resolve '//host/path' against the current
+    scheme. Phishers use these spellings to dodge naive URL parsers.
+    """
+    url = _STRIP_INSIDE.sub("", url).strip(" \x00\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f")
+    if url.startswith(("//", "\\\\", "/\\", "\\/")):
+        return "https://" + url.lstrip("/\\").replace("\\", "/")
+    match = _SPECIAL_SCHEME.match(url)
+    if match:
+        return f"{match.group(1).lower()}://" + url[match.end():].replace("\\", "/")
     return url
 
 
@@ -99,6 +128,9 @@ class _LinkCollector(HTMLParser):
             self.links.append((attrs.get("action") or "", "html:form", ""))
         elif tag in ("iframe", "frame", "embed", "script") and attrs.get("src"):
             self.links.append((attrs["src"], f"html:{tag}", ""))
+        elif tag == "img" and attrs.get("src") and not attrs["src"].lower().startswith(("data:", "cid:")):
+            # Remote images reveal tracking pixels and the infrastructure behind a campaign.
+            self.links.append((attrs["src"], "html:img", ""))
         elif tag == "meta" and (attrs.get("http-equiv") or "").lower() == "refresh":
             match = re.search(r"(?i)url\s*=\s*['\"]?([^'\"]+)", attrs.get("content") or "")
             if match:
@@ -173,7 +205,7 @@ def _domain_in_text(text: str) -> str:
 
 
 def _flags(entry: dict, from_domain: str) -> tuple[str, list[str]]:
-    url = entry["url"]
+    url = normalise_url(entry["url"])
     flags: list[str] = []
     lowered = url.lower()
 
@@ -183,9 +215,15 @@ def _flags(entry: dict, from_domain: str) -> tuple[str, list[str]]:
         flags.append("dangerous_scheme")
         return "", flags
 
+    if not re.match(r"(?i)^[a-z][a-z0-9+.-]*:", url) and not lowered.startswith("www."):
+        return "", flags  # relative link ("header.png", "/account"): no host of its own
+
     host, scheme, userinfo = _host(url)
     if not host:
         return "", flags
+    # Images cannot take the reader anywhere, so only host-level checks apply to them;
+    # otherwise every newsletter's facebook.png icon or http pixel would count against it.
+    image_only = entry["sources"] == ["html:img"]
     legit = legit_brand_for(host)
 
     if userinfo:
@@ -207,7 +245,7 @@ def _flags(entry: dict, from_domain: str) -> tuple[str, list[str]]:
         subdomain = host[: -len(org)].rstrip(".") if host != org else ""
         if subdomain.count(".") >= 3:
             flags.append("many_subdomains")
-        if not legit:
+        if not legit and not image_only:
             sub_tokens = set(re.split(r"[.\-_]", decode_idn(subdomain)))
             path = lowered.split(host, 1)[-1]
             path_tokens = set(re.split(r"[^a-z0-9]+", path))
@@ -217,9 +255,9 @@ def _flags(entry: dict, from_domain: str) -> tuple[str, list[str]]:
                 if len(token) >= 5 and token in path_tokens and "brand_in_path" not in flags:
                     flags.append("brand_in_path")
 
-    if scheme == "http":
+    if scheme == "http" and not image_only:
         flags.append("insecure")
-    if len(url) > 200:
+    if len(url) > 200 and not image_only:
         flags.append("long_url")
 
     for anchor in entry["anchor_texts"]:

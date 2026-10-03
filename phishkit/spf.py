@@ -82,17 +82,21 @@ class _Evaluator:
         record = self._record(domain)
         if record is None:
             return "none", f"{domain} publishes no SPF record"
-        if "%{" in record:
-            return "neutral", f"SPF macros in {domain}'s record are not supported by this tool"
 
         redirect = None
         for term in record.split()[1:]:
             lowered = term.lower()
             if lowered.startswith("redirect="):
                 redirect = term.split("=", 1)[1]
+                if "%{" in redirect:
+                    raise _SpfAbort("neutral", f"SPF macros in {domain}'s record are not supported by this tool")
                 continue
             if "=" in lowered and ":" not in lowered.split("=", 1)[0]:
-                continue  # other modifiers such as exp=
+                continue  # other modifiers such as exp= never affect the result
+            if "%{" in term:
+                # Unsupported features end the whole evaluation as neutral (not "no match"),
+                # so an include that needs them cannot fall through to the parent's -all.
+                raise _SpfAbort("neutral", f"SPF macros in {domain}'s record are not supported by this tool")
 
             qualifier = "+"
             if term[0] in QUALIFIERS:
@@ -140,7 +144,7 @@ class _Evaluator:
                 if inner in ("permerror", "none"):
                     raise _SpfAbort("permerror", f"include:{arg} -> {inner} ({inner_detail})")
             elif mech in ("exists", "ptr"):
-                return "neutral", f"the '{mech}' mechanism in {domain}'s record is not supported by this tool"
+                raise _SpfAbort("neutral", f"the '{mech}' mechanism in {domain}'s record is not supported by this tool")
             else:
                 raise _SpfAbort("permerror", f"unknown mechanism '{term}' in {domain}'s record")
 

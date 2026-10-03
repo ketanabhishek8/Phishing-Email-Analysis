@@ -93,7 +93,8 @@ other except shared helpers (`domains`, `dnsutil`, `models`).
   softfail/neutral/none/temperror/permerror) with properties (smtp.mailfrom,
   header.d, header.from). Only the topmost (most recent) Authentication-Results
   is trusted; others are listed as informational, since attackers can forge
-  lower ones.
+  lower ones. Without a receiver-stamped Authentication-Results, ARC and
+  Received-SPF headers are shown as unverified claims and never trusted.
 - **Live (`live=True`):**
   - DKIM: `dkim.verify(raw, dnsfunc=...)` per signature; key-not-found is
     reported as "key unavailable", not fail.
@@ -132,7 +133,8 @@ other except shared helpers (`domains`, `dnsutil`, `models`).
   `vbaProject.bin`, OLE2 with macros marker, encrypted zip entries, HTML
   attachments containing scripts/forms (smuggling), right-to-left override
   in filename.
-- Attachment bytes stay in memory; never written to disk.
+- Attachment bytes stay in memory; never written to disk. Malformed archives
+  never raise (every zip error is caught).
 
 ### 4.7 intel (optional)
 - Enabled only with `vt=True` and `VT_API_KEY` set. Uses VirusTotal v3
@@ -156,10 +158,11 @@ other except shared helpers (`domains`, `dnsutil`, `models`).
   `GET /report/<id>`; `GET /dashboard` (table of past analyses + verdict
   counts); `POST /api/analyze` (multipart file → JSON); `GET /api/report/<id>`.
 - Upload form has checkboxes for live DNS and VirusTotal.
-- Security: `MAX_CONTENT_LENGTH` 10 MB, `.eml` only, Jinja autoescape on, email
-  HTML shown only as escaped source in a collapsible block, URLs defanged and
-  never rendered as links, CSRF token on form posts, strict CSP header, no
-  external assets.
+- Security: `MAX_CONTENT_LENGTH` 10 MB buffered in memory, `.eml` only, Jinja
+  autoescape on, email HTML shown only as escaped source in a collapsible block,
+  URLs defanged and never rendered as links, invisible characters revealed as
+  `<U+XXXX>`, CSRF token on form posts, foreign-Origin POSTs refused, Host header
+  allow-list (localhost), strict CSP header, no external assets.
 - Storage: SQLite (`instance/phishkit.db`): id, created_at, filename, subject,
   from, score, verdict, report JSON.
 

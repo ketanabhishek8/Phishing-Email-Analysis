@@ -5,22 +5,28 @@ Security posture (the app handles hostile input by design):
 - URLs from emails are defanged and never emitted as links
 - strict Content-Security-Policy, no inline scripts or external assets
 - CSRF token on every form post; the JSON API is stateless (never writes to the database)
-- uploads capped at 10 MB and kept in memory only
+- cross-origin POSTs are refused and only localhost Host headers are served (DNS rebinding)
+- invisible characters (right-to-left overrides etc.) are shown as visible <U+XXXX> markers
+- uploads capped at 10 MB and buffered in memory, never spooled to a temporary file
 """
 
 from __future__ import annotations
 
 import hmac
+import io
 import os
 import re
 import secrets
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Request, abort, jsonify, redirect, render_template, request, session, url_for
+from markupsafe import Markup
 
 from phishkit import __version__
 from phishkit.analyzer import analyze
 from phishkit.models import Severity
+from phishkit.textsafe import reveal
 from phishkit.urls import defang
 
 from .store import Store
@@ -44,6 +50,17 @@ SAMPLE_TITLES = {
 }
 
 
+DEFAULT_TRUSTED_HOSTS = ["127.0.0.1", "localhost", "[::1]", "::1"]
+
+
+class InMemoryRequest(Request):
+    """Keep uploaded files in memory. Werkzeug normally spools uploads over 500 KB to a
+    temporary file; with the 10 MB cap, memory is fine and suspicious files never touch disk."""
+
+    def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):
+        return io.BytesIO()
+
+
 def _sample_names() -> list[str]:
     if not SAMPLES_DIR.is_dir():
         return []
@@ -52,7 +69,10 @@ def _sample_names() -> list[str]:
 
 def create_app(db_path: str | None = None, testing: bool = False) -> Flask:
     app = Flask(__name__, instance_path=str(ROOT / "instance"))
+    app.request_class = InMemoryRequest
+    trusted = os.environ.get("PHISHKIT_TRUSTED_HOSTS")
     app.config.update(
+        TRUSTED_HOSTS=[h.strip() for h in trusted.split(",")] if trusted else DEFAULT_TRUSTED_HOSTS,
         SECRET_KEY=os.environ.get("PHISHKIT_SECRET_KEY") or secrets.token_hex(32),
         MAX_CONTENT_LENGTH=MAX_UPLOAD,
         TESTING=testing,
@@ -93,6 +113,26 @@ def create_app(db_path: str | None = None, testing: bool = False) -> Flask:
         report = analyze(data, live=bool(request.form.get("live")), vt=bool(request.form.get("vt")))
         rid = store.save(filename, report.to_dict())
         return redirect(url_for("report", analysis_id=rid))
+
+    # Show invisible formatting characters in everything the templates output, so an
+    # attachment named "inv\u202efdp.exe" is displayed as "inv<U+202E>fdp.exe".
+    app.jinja_env.finalize = lambda v: v if isinstance(v, Markup) or not isinstance(v, str) else reveal(v)
+
+    @app.before_request
+    def refuse_cross_origin_posts():
+        """Browsers send Origin on cross-site POSTs. Refusing foreign origins stops other
+        websites from driving the local API (e.g. spending the VirusTotal quota)."""
+        if request.method != "POST":
+            return None
+        origin = request.headers.get("Origin")
+        if origin and origin != "null":
+            host = (urlsplit(origin).hostname or "").lower()
+            allowed = {h.strip("[]").lower() for h in app.config["TRUSTED_HOSTS"]}
+            if host not in allowed:
+                abort(403, description="Requests from other websites are not accepted.")
+        elif origin == "null":
+            abort(403, description="Requests from other websites are not accepted.")
+        return None
 
     @app.context_processor
     def inject():
@@ -180,6 +220,7 @@ def create_app(db_path: str | None = None, testing: bool = False) -> Flask:
     # -------------------------------------------------------------- errors
 
     @app.errorhandler(400)
+    @app.errorhandler(403)
     @app.errorhandler(404)
     @app.errorhandler(413)
     def error(exc):
@@ -191,6 +232,9 @@ def create_app(db_path: str | None = None, testing: bool = False) -> Flask:
         message = messages.get(exc.code) or exc.description
         if request.path.startswith("/api/"):
             return jsonify(error=message), exc.code
-        return render_template("error.html", code=exc.code, message=message), exc.code
+        try:
+            return render_template("error.html", code=exc.code, message=message), exc.code
+        except Exception:  # e.g. untrusted Host header: no URL adapter to build page links
+            return message or "Bad request", exc.code, {"Content-Type": "text/plain; charset=utf-8"}
 
     return app

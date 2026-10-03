@@ -39,19 +39,25 @@ BRANDS: dict[str, tuple[list[str], list[str]]] = {
         ["microsoft", "office365", "office 365", "microsoft 365", "outlook", "onedrive", "sharepoint"],
         ["microsoft.com", "microsoftonline.com", "office.com", "office365.com", "outlook.com",
          "live.com", "hotmail.com", "sharepoint.com", "onmicrosoft.com", "azure.com",
-         "windows.net", "msn.com", "microsoft365.com", "onedrive.com"],
+         "windows.net", "msn.com", "microsoft365.com", "onedrive.com", "msauth.net", "msftauth.net",
+         "office.net", "live.net", "microsoftonline-p.com"],
     ),
-    "apple": (["apple", "icloud", "itunes"], ["apple.com", "icloud.com", "me.com", "itunes.com"]),
+    "apple": (["apple", "icloud", "itunes"], ["apple.com", "icloud.com", "me.com", "itunes.com",
+                                              "apple-dns.net", "apple-cloudkit.com", "mzstatic.com",
+                                              "cdn-apple.com"]),
     "amazon": (["amazon", "aws"], ["amazon.com", "amazon.co.uk", "amazon.in", "amazon.de",
-                                   "amazonses.com", "amazonaws.com", "amazon.ca"]),
+                                   "amazonses.com", "amazonaws.com", "amazon.ca", "amazon-adsystem.com",
+                                   "media-amazon.com", "ssl-images-amazon.com", "amazontrust.com"]),
     "google": (["google", "gmail"], ["google.com", "gmail.com", "googlemail.com", "youtube.com",
-                                     "googleusercontent.com", "goo.gl"]),
+                                     "googleusercontent.com", "goo.gl", "google-analytics.com",
+                                     "googletagmanager.com", "googleapis.com", "gstatic.com",
+                                     "doubleclick.net", "googlesyndication.com"]),
     "netflix": (["netflix"], ["netflix.com"]),
     "docusign": (["docusign"], ["docusign.com", "docusign.net"]),
     "dropbox": (["dropbox"], ["dropbox.com", "dropboxmail.com"]),
-    "linkedin": (["linkedin"], ["linkedin.com"]),
+    "linkedin": (["linkedin"], ["linkedin.com", "linkedin-ei.com", "licdn.com"]),
     "facebook": (["facebook", "instagram", "meta"], ["facebook.com", "facebookmail.com", "meta.com",
-                                                     "instagram.com"]),
+                                                     "instagram.com", "facebook.net", "fbcdn.net"]),
     "dhl": (["dhl"], ["dhl.com", "dhl.de"]),
     "fedex": (["fedex"], ["fedex.com"]),
     "usps": (["usps"], ["usps.com"]),
@@ -87,7 +93,10 @@ SUSPICIOUS_TLDS = {
 BAIT_WORDS = (
     "secure", "security", "login", "logon", "signin", "verify", "verification", "account",
     "support", "update", "service", "billing", "auth", "online", "help", "alert", "confirm",
-    "recovery", "unlock", "wallet", "payment", "invoice", "helpdesk", "portal",
+    "recovery", "unlock", "wallet", "payment", "invoice", "helpdesk", "portal", "delivery",
+    "parcel", "tracking", "shipment", "notify", "notification", "express", "customs", "refund",
+    "alerts", "verify", "signon", "sso", "webmail", "mail", "pay", "reset", "secure", "access",
+    "sign", "esign", "document", "docs", "share", "drive", "file", "files",
 )
 
 # Visually confusable non-Latin characters mapped to the Latin letter they imitate.
@@ -102,7 +111,9 @@ CONFUSABLES = str.maketrans({
 _ASCII_SWAPS = [("rn", "m"), ("vv", "w"), ("cl", "d"), ("0", "o"), ("1", "l"), ("3", "e"),
                 ("4", "a"), ("5", "s"), ("7", "t"), ("@", "a"), ("$", "s")]
 
-_ADDR = re.compile(r"[\w.+'-]+@([\w-]+(?:\.[\w-]+)+)", re.UNICODE)
+# The lookbehind makes matching start only at the beginning of a local part, which keeps
+# it linear on hostile input such as a 40,000-character From header.
+_ADDR = re.compile(r"(?<![\w.+'-])[\w.+'-]+@([\w-]+(?:\.[\w-]+)+)", re.UNICODE)
 
 
 def normalise_domain(domain: str) -> str:
@@ -198,7 +209,9 @@ def lookalike_of(domain: str) -> str | None:
     """Return the brand domain this domain imitates, or None.
 
     Catches homoglyph/punycode domains, ASCII swaps (paypa1, rnicrosoft), small typos
-    (arnazon) and a brand glued to bait words (paypal-secure-login).
+    (arnazon) and a brand glued to bait words (paypal-secure-login, dhl-parcel-tracking).
+    Short brand names (dhl, meta, chase) only count next to a bait word, so ordinary words
+    such as meta-analysis or chase-hotels are not flagged.
     """
     domain = normalise_domain(domain)
     if not domain or legit_brand_for(domain):
@@ -208,19 +221,23 @@ def lookalike_of(domain: str) -> str | None:
     label = org.split(".")[0]
     norm = skeleton(label)
     tokens = [t for t in re.split(r"[-_.]", norm) if t]
+    bait = {skeleton(w) for w in BAIT_WORDS}
+    has_bait = any(t in bait for t in tokens)
 
-    for brand, token, primary in brand_tokens():
+    for brand, name, primary in brand_tokens():
+        token = skeleton(name)  # normalise the brand too: "icloud" -> "idoud" after the cl->d swap
         if norm == token:
             return primary
+        if len(token) < 6:
+            if token in tokens and has_bait:
+                return primary
+            continue
         if token in tokens and len(tokens) > 1:
             return primary
-        if len(token) >= 6:
-            if any(levenshtein(t, token) <= (2 if len(token) >= 9 else 1) for t in tokens):
-                return primary
-            if token in norm and any(word in norm.replace(token, "") for word in BAIT_WORDS):
-                return primary
-            if any(token in t and t != token and any(w in t for w in BAIT_WORDS) for t in tokens):
-                return primary
+        if any(levenshtein(t, token) <= (2 if len(token) >= 9 else 1) for t in tokens):
+            return primary
+        if token in norm and any(word in norm.replace(token, "") for word in bait):
+            return primary
     return None
 
 

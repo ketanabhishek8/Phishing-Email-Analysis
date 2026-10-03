@@ -107,12 +107,13 @@ class RecordedAuthTests(unittest.TestCase):
         self.assertEqual(section["recorded"]["spf"]["source"], "Received-SPF")
         self.assertIn("SPF failed", titles(findings))
 
-    def test_arc_used_as_fallback(self):
+    def test_arc_alone_is_listed_but_not_trusted(self):
+        # The sender can write ARC headers; without a receiver-stamped result they are claims only.
         section, _ = auth_for([
             ("ARC-Authentication-Results", "i=1; mx.microsoft.com 1; spf=pass smtp.mailfrom=example.com; dkim=pass header.d=example.com; dmarc=pass header.from=example.com"),
         ])
-        self.assertEqual(section["recorded"]["dmarc"]["result"], "pass")
-        self.assertEqual(section["recorded"]["dmarc"]["source"], "ARC-Authentication-Results")
+        self.assertEqual(section["recorded"]["dmarc"]["result"], "none")
+        self.assertTrue(section["other_headers"][0].startswith("ARC-Authentication-Results"))
 
 
 if __name__ == "__main__":

@@ -122,7 +122,7 @@
         <div><dt>DKIM</dt><dd><span class="result result-{{ L.dkim_result.replace(' ', '-') }}">{{ L.dkim_result }}</span>
           {% for sig in L.dkim %}<span class="auth-detail">{{ sig.domain }} ({{ sig.selector }}): {{ sig.detail }}</span>{% else %}<span class="auth-detail">no DKIM-Signature header</span>{% endfor %}</dd></div>
         <div><dt>DMARC</dt><dd><span class="result result-{{ L.dmarc.result }}">{{ L.dmarc.result }}</span>
-          <span class="auth-detail">{{ L.dmarc.detail }}{% if L.dmarc.policy %}; policy p={{ L.dmarc.policy.p }} at {{ L.dmarc.policy.domain }}{% endif %}</span></dd></div>
+          <span class="auth-detail">{{ L.dmarc.detail }}{% if L.dmarc.policy %}; policy {{ 'sp' if L.dmarc.policy.inherited else 'p' }}={{ L.dmarc.policy.effective or L.dmarc.policy.p }} at {{ L.dmarc.policy.domain }}{% endif %}</span></dd></div>
       </dl>
       {% endif %}
     </section>

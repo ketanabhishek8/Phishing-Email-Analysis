@@ -37,15 +37,21 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     color = not args.no_color and sys.stdout.isatty()
-    reports, worst = [], 0
+    reports, worst, failed = [], 0, False
     for path in args.files:
         try:
             with open(path, "rb") as fh:
                 raw = fh.read()
         except OSError as exc:
             print(f"phishkit: cannot read {path}: {exc.strerror or exc}", file=sys.stderr)
-            return EXIT_ERROR
-        report = analyze(raw, live=args.live, vt=args.vt)
+            failed = True
+            continue
+        try:
+            report = analyze(raw, live=args.live, vt=args.vt)
+        except Exception as exc:  # analyze() guards each module; this is a last resort
+            print(f"phishkit: could not analyse {path}: {type(exc).__name__}: {exc}", file=sys.stderr)
+            failed = True
+            continue
         worst = max(worst, EXIT_CODES[report.verdict])
         if args.json:
             data = report.to_dict()
@@ -56,6 +62,6 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"=== {path} ===")
             print(render_text(report, color=color))
 
-    if args.json:
-        print(json.dumps(reports[0] if len(reports) == 1 else reports, indent=2, ensure_ascii=False))
-    return worst
+    if args.json and reports:
+        print(json.dumps(reports[0] if len(args.files) == 1 else reports, indent=2, ensure_ascii=False))
+    return EXIT_ERROR if failed else worst

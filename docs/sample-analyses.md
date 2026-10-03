@@ -167,7 +167,7 @@ Ten emails from [rf-peixoto/phishing_pot](https://github.com/rf-peixoto/phishing
 | sample-100 | Dutch solar-panel spam | none / none / none | 60 | Likely phishing |
 | sample-1012 | "Hi" (conversation starter) | softfail / none / none | 60 | Likely phishing |
 | sample-1 | Bradesco Livelo points-expiry lure (Brazil) | temperror / none / temperror | 20 | Suspicious |
-| sample-1003 | "More benefits from Ripple" crypto lure, display name CoinDesk | pass / pass / pass | 0 | **Clean (missed)** |
+| sample-1003 | "More benefits from Ripple" crypto lure, display name CoinDesk | pass / pass / bestguesspass | 5 | **Clean (missed)** |
 
 ### What the corpus shows
 
@@ -180,13 +180,19 @@ how an analyst groups individual reports into a campaign.
 
 **sample-101 spoofs microsoft.com directly, and DMARC catches it.** The receiving server
 recorded `dmarc=fail action=oreject` (Microsoft 365's "override reject"). Running with
-`--live` against real DNS confirms it:
+`--live` against real DNS confirms it (exact output, October 2026):
 
 ```
-SPF     none   nisihfjoz.co.uk publishes no SPF record
-DKIM    key unavailable  microsoft.com (smtp): no public key at smtp._domainkey.microsoft.com
-DMARC   fail   neither SPF nor DKIM passed aligned with microsoft.com  policy p=reject
+  Live DNS re-check:
+  Origin IP     103.167.154.120
+  SPF           temperror  DNS timeout looking up SPF for nisihfjoz.co.uk
+  DKIM          key unavailable  microsoft.com (smtp): no public key at smtp._domainkey.microsoft.com; the sender may have rotated it since the email was sent
+  DMARC         fail  neither SPF (nisihfjoz.co.uk: temperror) nor DKIM (no valid signature) passed aligned with microsoft.com policy p=reject
 ```
+
+The throwaway bounce domain no longer answers DNS at all (`temperror`), which is typical: phishing
+infrastructure is abandoned within days. DMARC still fails because nothing aligned with
+`microsoft.com` passed.
 
 ![Report for corpus sample-101](screenshots/report-corpus-ms.png)
 
@@ -204,10 +210,15 @@ is enough to fool a human reading headers but not a verifier.
   that shape.
 
 Both fixes have regression tests in `tests/test_senders.py` and `tests/test_auth_recorded.py`.
+A later hardening pass (fuzzing the samples and corpus with mutated bytes) found and fixed
+crashes on malformed zip archives, NUL bytes in charsets and malformed DKIM tags, plus three
+inputs that took quadratic time; those are pinned by `tests/test_hardening.py`.
 
 **Where it falls short.**
-- **sample-1003 scores Clean.** It passes SPF, DKIM and DMARC for its own domain
-  (`mg.areafellowship[.]com`). Its links have no technical red flags, and "CoinDesk" is not
+- **sample-1003 scores Clean (5).** It passes SPF and DKIM for its own domain
+  (`mg.areafellowship[.]com`). DMARC shows `bestguesspass`, Microsoft 365's verdict when a
+  domain publishes no DMARC record at all, which PhishKit now counts as "No DMARC policy"
+  (low). Its links have no technical red flags, and "CoinDesk" is not
   in the built-in brand list, so the display-name impersonation goes unnoticed. Only the
   content (crypto "allocation" bait) gives it away, and PhishKit does not analyse wording.
 - **sample-1 scores only Suspicious.** "Banco do Bradesco" is a major Brazilian bank, but

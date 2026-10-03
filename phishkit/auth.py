@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import email as email_lib
 import ipaddress
 import logging
@@ -139,6 +141,8 @@ _SEVERITY = {
              "neutral": (Severity.LOW, "DKIM neutral"), "permerror": (Severity.LOW, "DKIM permanent error"),
              "temperror": (Severity.LOW, "DKIM temporary error"), "policy": (Severity.LOW, "DKIM policy result")},
     "dmarc": {"fail": (Severity.HIGH, "DMARC failed"), "none": (Severity.LOW, "No DMARC policy"),
+              # Microsoft 365's verdict when the From domain publishes no DMARC record.
+              "bestguesspass": (Severity.LOW, "No DMARC policy"),
               "permerror": (Severity.LOW, "DMARC permanent error"), "temperror": (Severity.LOW, "DMARC temporary error")},
 }
 
@@ -157,37 +161,41 @@ def analyze_recorded(email: ParsedEmail) -> tuple[dict, list[Finding]]:
     recorded: dict = {}
     authserv_id = ""
     dkim_domains: list[str] = []
-    parsed = None
+    received_spf = email.get("Received-SPF")
     if ar_headers:
         parsed = parse_auth_results(ar_headers[0])
         recorded = _summarise(parsed, "Authentication-Results")
-    elif arc_headers:
-        # Highest ARC instance = most recent hop that sealed the results.
-        def instance(v):
-            m = re.match(r"\s*i=(\d+)", v)
-            return int(m.group(1)) if m else 0
-        parsed = parse_auth_results(max(arc_headers, key=instance))
-        recorded = _summarise(parsed, "ARC-Authentication-Results")
-    if parsed:
         authserv_id = parsed["authserv_id"]
         dkim_domains = sorted({_dkim_domain(r["props"]) for r in parsed["results"]
                                if r["method"] == "dkim" and _dkim_domain(r["props"])})
-
-    received_spf = email.get("Received-SPF")
-    if "spf" not in recorded and received_spf:
-        recorded["spf"] = _received_spf(received_spf)
+        if "spf" not in recorded and received_spf:
+            recorded["spf"] = _received_spf(received_spf)
+    # Without a receiver-stamped Authentication-Results, ARC-Authentication-Results and
+    # Received-SPF prove nothing: the sender can write them. They are shown as unverified
+    # claims only (verifying ARC needs the ARC-Seal chain, which is out of scope).
+    unverified = [] if ar_headers else (
+        [f"ARC-Authentication-Results: {v}" for v in arc_headers]
+        + ([f"Received-SPF: {received_spf}"] if received_spf else [])
+    )
 
     nothing_recorded = not recorded
     for method in METHODS:
         recorded.setdefault(method, {"result": "none", "detail": NOT_RECORDED, "source": ""})
 
     if nothing_recorded:
-        findings.append(Finding(
-            CATEGORY, Severity.INFO, "No authentication results recorded",
-            "The email has no Authentication-Results or Received-SPF header, so the receiving "
-            "server's SPF/DKIM/DMARC verdicts are unknown. This is normal for emails saved from "
-            "some clients or forwarded as attachments; run with live checks to verify via DNS.",
-        ))
+        if ar_headers:
+            detail = ("The topmost Authentication-Results header contains no SPF, DKIM or DMARC "
+                      "result, so the receiving server's verdicts are unknown.")
+        else:
+            detail = ("The email has no Authentication-Results header from the receiving server, so "
+                      "its SPF/DKIM/DMARC verdicts are unknown. This is normal for emails saved from "
+                      "some clients or forwarded as attachments; run with live checks to verify via DNS.")
+            if unverified:
+                detail += (" The email does carry ARC or Received-SPF headers, but without a receiver-"
+                           "stamped result these could have been written by the sender, so they are "
+                           "listed as unverified claims and not trusted.")
+        findings.append(Finding(CATEGORY, Severity.INFO, "No authentication results recorded", detail,
+                                "; ".join(unverified)[:300]))
     else:
         for method in METHODS:
             entry = recorded[method]
@@ -210,7 +218,7 @@ def analyze_recorded(email: ParsedEmail) -> tuple[dict, list[Finding]]:
         "recorded": recorded,
         "authserv_id": authserv_id,
         "dkim_domains": dkim_domains,
-        "other_headers": other + arc_headers,
+        "other_headers": other + (arc_headers if ar_headers else unverified),
         "live": None,
     }
     return section, findings
@@ -257,6 +265,17 @@ def verify_dkim(raw: bytes, resolver) -> list[dict]:
             else:
                 entry.update(result="temperror", detail=f"DNS {exc.kind} fetching {key_name}")
             continue
+        key_tags = _tags(key_record)
+        if not key_tags.get("p"):
+            entry.update(result="key unavailable" if "p" in key_tags else "permerror",
+                         detail=f"the key at {key_name} is revoked (empty p=)" if "p" in key_tags
+                         else f"the record at {key_name} is not a DKIM key")
+            continue
+        try:
+            base64.b64decode(key_tags["p"], validate=True)
+        except (binascii.Error, ValueError):
+            entry.update(result="permerror", detail=f"the public key at {key_name} is not valid base64")
+            continue
         try:
             ok = dkim.DKIM(raw, logger=_QUIET).verify(
                 idx=idx, dnsfunc=lambda name, timeout=5: key_record.encode()
@@ -269,6 +288,9 @@ def verify_dkim(raw: bytes, resolver) -> list[dict]:
                 entry.update(result="fail", detail="body hash mismatch: the body was altered after signing")
             else:
                 entry.update(result="permerror", detail=f"malformed signature: {exc}")
+            continue
+        except Exception as exc:  # dkimpy raises ValueError/IndexError/binascii.Error on hostile tags
+            entry.update(result="permerror", detail=f"malformed signature or key: {type(exc).__name__}")
             continue
         if ok:
             entry.update(result="pass", detail=f"signature verified with key {key_name}")
@@ -395,10 +417,11 @@ def analyze_live(email: ParsedEmail, section: dict, resolver) -> tuple[dict, lis
             severity, title = rule
             findings.append(Finding(CATEGORY, severity, f"{title} (live check)", _EXPLAIN[method], detail))
 
-    if policy and policy["p"] == "none" and dmarc_result != "fail":
+    if policy and policy["effective"] == "none" and dmarc_result != "fail":
+        scope = f"subdomains of {policy['domain']} (sp=none)" if policy["inherited"] else policy["domain"]
         findings.append(Finding(
             CATEGORY, Severity.LOW, "DMARC policy is monitor-only (p=none)",
-            f"{policy['domain']} asks receivers to take no action on DMARC failures, so spoofed "
+            f"The policy for {scope} asks receivers to take no action on DMARC failures, so spoofed "
             "mail using this domain is still delivered.", policy["record"],
         ))
     return live, findings

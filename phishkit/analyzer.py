@@ -30,10 +30,24 @@ def analyze(raw: bytes, live: bool = False, vt: bool = False, resolver=None,
             "; ".join(email.parse_errors[:5]),
         ))
 
-    auth, auth_findings = analyze_auth(email, live=live, resolver=resolver)
-    senders, sender_findings = analyze_senders(email)
-    urls, url_findings = analyze_urls(email)
-    attachments, attachment_findings = analyze_attachments(email)
+    def guarded(name, func, *args, empty, **kwargs):
+        """Run one analysis module; an unexpected error becomes a finding, never a crash."""
+        try:
+            return func(*args, **kwargs)
+        except Exception as exc:  # hostile input must not take the whole report down
+            findings.append(Finding(
+                "parsing", Severity.INFO, "Part of the analysis failed",
+                f"The {name} check could not process this email, so its results are missing. "
+                "Review that part manually.", f"{type(exc).__name__}: {exc}"[:300],
+            ))
+            return empty, []
+
+    auth, auth_findings = guarded("authentication", analyze_auth, email, live=live, resolver=resolver,
+                                  empty={"recorded": {}, "authserv_id": "", "dkim_domains": [],
+                                         "other_headers": [], "live": None})
+    senders, sender_findings = guarded("sender", analyze_senders, email, empty={"mismatches": []})
+    urls, url_findings = guarded("link", analyze_urls, email, empty=[])
+    attachments, attachment_findings = guarded("attachment", analyze_attachments, email, empty=[])
     findings += auth_findings + sender_findings + url_findings + attachment_findings
 
     if vt:
@@ -42,7 +56,7 @@ def analyze(raw: bytes, live: bool = False, vt: bool = False, resolver=None,
             findings.append(Finding("threat-intel", Severity.INFO, "VirusTotal skipped",
                                     "Set the VT_API_KEY environment variable to enable reputation lookups."))
         else:
-            findings += enrich(attachments, urls, client)
+            findings += guarded("VirusTotal", lambda: (None, enrich(attachments, urls, client)), empty=None)[1]
 
     findings.sort(key=lambda f: int(f.severity), reverse=True)
     total, verdict = score(findings)

@@ -11,6 +11,7 @@ from .domains import (
 )
 from .models import Finding, Severity
 from .parser import ParsedEmail
+from .textsafe import BIDI_CONTROLS, reveal
 
 CATEGORY = "sender"
 
@@ -20,7 +21,7 @@ ROLE_WORDS = re.compile(
     r"security team|it team|tech support|customer support|support team|webmaster|postmaster)\b",
     re.I,
 )
-_EMAIL_IN_TEXT = re.compile(r"[\w.+'-]+@[\w-]+(?:\.[\w-]+)+")
+_EMAIL_IN_TEXT = re.compile(r"(?<![\w.+'-])[\w.+'-]+@[\w-]+(?:\.[\w-]+)+")
 
 
 def _msgid_domain(message_id: str) -> str:
@@ -71,6 +72,16 @@ def analyze_senders(email: ParsedEmail) -> tuple[dict, list[Finding]]:
         "mismatches": [],
         "lookalike": None,
     }
+
+    hidden = [(name, value) for name, value in (("Subject", email.subject), ("From", email.from_),
+                                                 ("Reply-To", reply_to)) if BIDI_CONTROLS.search(value or "")]
+    if hidden:
+        findings.append(Finding(
+            CATEGORY, Severity.MEDIUM, "Hidden text-direction characters in headers",
+            "Invisible Unicode direction controls reorder how text is displayed. Legitimate mail "
+            "has no reason to use them in these headers; attackers use them to disguise names and "
+            "subjects.", "; ".join(f"{n}: {reveal(v)}" for n, v in hidden)[:300],
+        ))
 
     if not from_domain:
         findings.append(Finding(CATEGORY, Severity.MEDIUM, "Missing From address",
