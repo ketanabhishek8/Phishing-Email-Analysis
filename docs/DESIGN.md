@@ -28,13 +28,12 @@ sample phishing emails plus a write-up on organisational phishing defences.
 
 ## 2. Constraints
 
-- Python 3.13, dependencies isolated in `./.venv`: Flask, dkimpy, dnspython.
-- No other installs without asking. Tests use stdlib `unittest`.
+- Python 3.10+ (developed on 3.13), three dependencies only: Flask, dkimpy, dnspython.
+  Tests use the standard library's `unittest`.
 - Network access only when explicitly requested: `--live` (DNS) and `--vt`
   (VirusTotal, requires `VT_API_KEY`). Default analysis is fully offline.
-- Public-corpus samples are downloaded only after a separate confirmation listing
-  exact files, source and size. LetsDefend samples need the user's login, so the
-  user exports those manually.
+- Real-world phishing samples are fetched by a script into a git-ignored folder and
+  never committed. LetsDefend exports require an account, so they are added manually.
 
 ## 3. Architecture
 
