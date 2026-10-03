@@ -1,0 +1,14 @@
+[project]
+name = "phishkit"
+version = "1.0.0"
+description = "Phishing email analysis toolkit: SPF/DKIM/DMARC, sender mismatches, suspicious URLs and attachment hashes from .eml files, with a CLI and a web dashboard."
+authors = [{ name = "Abhishek Joshi" }]
+requires-python = ">=3.10"
+dependencies = ["Flask>=3.0", "dkimpy>=1.1", "dnspython>=2.6"]
+license = { text = "MIT" }
+
+[project.scripts]
+phishkit = "phishkit.cli:main"
+
+[tool.setuptools]
+packages = ["phishkit", "web"]
