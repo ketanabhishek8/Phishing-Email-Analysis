@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import email as email_lib
+import ipaddress
+import logging
 import re
+from email import policy as email_policy
 
+from . import dmarc, spf
+from .dnsutil import DNSError, default_resolver
+from .domains import domain_of
 from .models import Finding, Severity
 from .parser import ParsedEmail
 
@@ -200,6 +207,198 @@ def analyze_recorded(email: ParsedEmail) -> tuple[dict, list[Finding]]:
     return section, findings
 
 
+# ---------------------------------------------------------------- live checks
+
+_QUIET = logging.getLogger("phishkit.dkim")
+_QUIET.addHandler(logging.NullHandler())
+_QUIET.propagate = False
+
+
+def _tags(value: str) -> dict:
+    tags = {}
+    for part in "".join(value.split()).split(";"):
+        key, sep, val = part.partition("=")
+        if sep:
+            tags[key.lower()] = val
+    return tags
+
+
+def verify_dkim(raw: bytes, resolver) -> list[dict]:
+    """Cryptographically re-verify every DKIM-Signature against the signer's DNS key."""
+    import dkim
+
+    msg = email_lib.message_from_bytes(raw, policy=email_policy.compat32)
+    signatures = msg.get_all("DKIM-Signature") or []
+    results = []
+    for idx, value in enumerate(signatures):
+        tags = _tags(str(value))
+        domain, selector = tags.get("d", "").lower(), tags.get("s", "")
+        entry = {"domain": domain, "selector": selector, "result": "", "detail": ""}
+        results.append(entry)
+        if not domain or not selector:
+            entry.update(result="permerror", detail="signature is missing d= or s=")
+            continue
+        key_name = f"{selector}._domainkey.{domain}"
+        try:
+            key_record = "".join(resolver.txt(key_name))
+        except DNSError as exc:
+            if exc.kind == "nxdomain":
+                entry.update(result="key unavailable",
+                             detail=f"no public key at {key_name}; the sender may have rotated it since the email was sent")
+            else:
+                entry.update(result="temperror", detail=f"DNS {exc.kind} fetching {key_name}")
+            continue
+        try:
+            ok = dkim.DKIM(raw, logger=_QUIET).verify(
+                idx=idx, dnsfunc=lambda name, timeout=5: key_record.encode()
+            )
+        except dkim.KeyFormatError as exc:
+            entry.update(result="key unavailable", detail=f"public key at {key_name} is unusable: {exc}")
+            continue
+        except dkim.DKIMException as exc:
+            if "body hash mismatch" in str(exc):
+                entry.update(result="fail", detail="body hash mismatch: the body was altered after signing")
+            else:
+                entry.update(result="permerror", detail=f"malformed signature: {exc}")
+            continue
+        if ok:
+            entry.update(result="pass", detail=f"signature verified with key {key_name}")
+        else:
+            entry.update(result="fail", detail="signature does not match: headers or body were altered, or it was forged")
+    return results
+
+
+# Networks that belong to the recipient's own infrastructure, never the true sender.
+_INTERNAL_NETS = [ipaddress.ip_network(n) for n in (
+    "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "169.254.0.0/16",
+    "100.64.0.0/10", "0.0.0.0/8", "::1/128", "fc00::/7", "fe80::/10", "::/128",
+)]
+
+
+def _public_ip(value: str) -> str:
+    try:
+        ip = ipaddress.ip_address(value)
+    except ValueError:
+        return ""
+    if any(ip.version == net.version and ip in net for net in _INTERNAL_NETS):
+        return ""
+    return str(ip)
+
+
+def originating_ip(email: ParsedEmail) -> str:
+    """Best guess at the IP that handed the email to the recipient's infrastructure."""
+    received_spf = email.get("Received-SPF") or ""
+    match = re.search(r"client-ip=([0-9A-Fa-f:.]+)", received_spf)
+    if match and _public_ip(match.group(1).rstrip(";")):
+        return _public_ip(match.group(1).rstrip(";"))
+    for ar in email.get_all("Authentication-Results")[:1]:
+        match = re.search(r"designates ([0-9A-Fa-f:.]+) as permitted", ar)
+        if match and _public_ip(match.group(1)):
+            return _public_ip(match.group(1))
+    for hop in email.received:
+        if _public_ip(hop.ip):
+            return _public_ip(hop.ip)
+    return ""
+
+
+def _is_recorded(section: dict, method: str) -> bool:
+    return section["recorded"][method]["detail"] != NOT_RECORDED
+
+
+def analyze_live(email: ParsedEmail, section: dict, resolver) -> tuple[dict, list[Finding]]:
+    findings: list[Finding] = []
+    from_domain = domain_of(email.from_)
+    spf_domain = domain_of(email.get("Return-Path") or "") or from_domain
+    ip = originating_ip(email)
+
+    spf_result, spf_detail = spf.check_spf(ip, spf_domain, resolver)
+    dkim_results = verify_dkim(email.raw, resolver)
+    passing_dkim = [r["domain"] for r in dkim_results if r["result"] == "pass"]
+
+    try:
+        policy = dmarc.fetch_policy(from_domain, resolver)
+        policy_error = None
+    except DNSError as exc:
+        policy, policy_error = None, exc.kind
+
+    align = dmarc.alignment(
+        from_domain,
+        spf_domain if spf_result == "pass" else "",
+        passing_dkim,
+        (policy or {}).get("adkim", "r"),
+        (policy or {}).get("aspf", "r"),
+    )
+    align["spf_domain"] = spf_domain
+
+    if policy_error:
+        dmarc_result, dmarc_detail = "temperror", f"DNS {policy_error} looking up _dmarc.{from_domain}"
+    elif policy is None:
+        dmarc_result, dmarc_detail = "none", f"{from_domain or 'the From domain'} publishes no DMARC record"
+    elif align["spf_aligned"] or align["dkim_aligned"]:
+        dmarc_result = "pass"
+        dmarc_detail = "aligned " + " and ".join(
+            k for k, v in (("SPF", align["spf_aligned"]), ("DKIM", align["dkim_aligned"])) if v
+        )
+    else:
+        dmarc_result = "fail"
+        dmarc_detail = (f"neither SPF ({spf_domain}: {spf_result}) nor DKIM "
+                        f"({', '.join(passing_dkim) or 'no valid signature'}) passed aligned with {from_domain}")
+
+    if not dkim_results:
+        dkim_summary = "none"
+    elif passing_dkim:
+        dkim_summary = "pass"
+    elif any(r["result"] == "fail" for r in dkim_results):
+        dkim_summary = "fail"
+    else:
+        dkim_summary = dkim_results[0]["result"]
+
+    live = {
+        "ip": ip,
+        "spf": {"result": spf_result, "detail": spf_detail, "domain": spf_domain},
+        "dkim": dkim_results,
+        "dkim_result": dkim_summary,
+        "dmarc": {"result": dmarc_result, "detail": dmarc_detail, "policy": policy},
+        "alignment": align,
+    }
+
+    # Score a live result only when the receiving server recorded nothing for that
+    # method; otherwise the recorded verdict already counted and we just note a disagreement.
+    for method, result, detail in (("spf", spf_result, spf_detail),
+                                   ("dkim", dkim_summary, "; ".join(r["detail"] for r in dkim_results)),
+                                   ("dmarc", dmarc_result, dmarc_detail)):
+        if _is_recorded(section, method):
+            recorded = section["recorded"][method]["result"]
+            if recorded != result:
+                findings.append(Finding(
+                    CATEGORY, Severity.INFO, f"Live {method.upper()} result differs from recorded",
+                    f"The receiving server recorded '{recorded}' but re-checking now gives '{result}'. "
+                    "DNS may have changed since delivery.", detail,
+                ))
+            continue
+        if method == "dkim" and result == "key unavailable":
+            findings.append(Finding(CATEGORY, Severity.INFO, "DKIM key unavailable (live check)",
+                                    "The signing key is no longer published, so the signature cannot be re-verified.",
+                                    detail))
+            continue
+        rule = _SEVERITY[method].get(result)
+        if rule:
+            severity, title = rule
+            findings.append(Finding(CATEGORY, severity, f"{title} (live check)", _EXPLAIN[method], detail))
+
+    if policy and policy["p"] == "none" and dmarc_result != "fail":
+        findings.append(Finding(
+            CATEGORY, Severity.LOW, "DMARC policy is monitor-only (p=none)",
+            f"{policy['domain']} asks receivers to take no action on DMARC failures, so spoofed "
+            "mail using this domain is still delivered.", policy["record"],
+        ))
+    return live, findings
+
+
 def analyze_auth(email: ParsedEmail, live: bool = False, resolver=None) -> tuple[dict, list[Finding]]:
     section, findings = analyze_recorded(email)
+    if live:
+        live_section, live_findings = analyze_live(email, section, resolver or default_resolver())
+        section["live"] = live_section
+        findings.extend(live_findings)
     return section, findings
