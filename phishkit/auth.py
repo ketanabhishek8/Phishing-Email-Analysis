@@ -105,7 +105,9 @@ def _summarise(parsed: dict, source: str) -> dict:
             passing = [e for e in entries if e["result"] == "pass"]
             chosen = passing[0] if passing else entries[0]
             detail = ", ".join(
-                f"{_dkim_domain(e['props']) or '?'}={e['result']}" for e in entries
+                f"{_dkim_domain(e['props'])}={e['result']}" if _dkim_domain(e["props"])
+                else (e["comment"] or e["result"])
+                for e in entries
             )
         else:
             chosen = entries[0]

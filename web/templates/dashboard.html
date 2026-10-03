@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – PhishKit{% endblock %}
+{% block content %}
+<section class="intro">
+  <h1>Analysed emails</h1>
+  {% if stats.total %}
+  <p class="tally" data-count-clean="{{ stats['Clean'] }}" data-count-suspicious="{{ stats['Suspicious'] }}" data-count-phishing="{{ stats['Likely phishing'] }}">
+    {{ stats.total }} email{{ '' if stats.total == 1 else 's' }} analysed:
+    <span class="tally-item"><span class="dot phishing" aria-hidden="true"></span>{{ stats['Likely phishing'] }} likely phishing</span>
+    <span class="tally-item"><span class="dot suspicious" aria-hidden="true"></span>{{ stats['Suspicious'] }} suspicious</span>
+    <span class="tally-item"><span class="dot clean" aria-hidden="true"></span>{{ stats['Clean'] }} clean</span>
+  </p>
+  {% endif %}
+</section>
+
+{% if rows %}
+<div class="table-wrap">
+<table class="history">
+  <thead>
+    <tr><th scope="col">Subject and sender</th><th scope="col">Verdict</th><th scope="col" class="num">Score</th><th scope="col">Analysed</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>
+        <a class="row-link" href="{{ url_for('report', analysis_id=row.id) }}">{{ row.subject or '(no subject)' }}</a>
+        <span class="muted mono small">{{ row.sender or row.filename }}</span>
+      </td>
+      <td><span class="verdict-pill {{ row.verdict|verdict_class }}">{{ row.verdict }}</span></td>
+      <td class="num">
+        <svg class="mini" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+          <rect class="mini-track" width="100" height="8"/><rect class="mini-fill {{ row.verdict|verdict_class }}" width="{{ row.score }}" height="8"/>
+        </svg>
+        {{ row.score }}
+      </td>
+      <td class="muted small">{{ row.created_at.replace('T', ' ').replace('+00:00', ' UTC') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<section class="empty-state">
+  <p><b>No emails analysed yet.</b> Upload a suspicious email or try one of the samples, and it will be listed here.</p>
+  <p><a class="button" href="{{ url_for('index') }}">Analyse an email</a></p>
+</section>
+{% endif %}
+{% endblock %}

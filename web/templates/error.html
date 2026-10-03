@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Error {{ code }} – PhishKit{% endblock %}
+{% block content %}
+<section class="intro error">
+  <h1>{% if code == 404 %}Page not found{% elif code == 413 %}File too large{% else %}That didn't work{% endif %}</h1>
+  <p class="lede">{{ message }}</p>
+  <p><a class="button" href="{{ url_for('index') }}">Back to upload</a></p>
+</section>
+{% endblock %}

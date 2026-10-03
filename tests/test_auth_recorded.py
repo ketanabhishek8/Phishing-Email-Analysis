@@ -70,6 +70,11 @@ class RecordedAuthTests(unittest.TestCase):
         self.assertEqual(section["recorded"]["spf"]["result"], "fail")
         self.assertEqual(len(section["other_headers"]), 1)
 
+    def test_unsigned_dkim_detail_is_readable(self):
+        section, _ = auth_for([("Authentication-Results", "mx.example.org; dkim=none (message not signed)")])
+        self.assertNotIn("?", section["recorded"]["dkim"]["detail"])
+        self.assertIn("message not signed", section["recorded"]["dkim"]["detail"])
+
     def test_dmarc_fail_is_high(self):
         _, findings = auth_for([("Authentication-Results", "mx.example.org; dmarc=fail (p=REJECT) header.from=paypal.com")])
         f = next(f for f in findings if f.title == "DMARC failed")

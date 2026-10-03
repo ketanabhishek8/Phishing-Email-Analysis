@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="intro">
+  <h1>Check a suspicious email</h1>
+  <p class="lede">Upload the saved email (.eml). PhishKit reads its headers, links and attachments and explains what looks wrong, in the order an analyst would check it.</p>
+</section>
+
+<form class="upload" action="{{ url_for('analyze_upload') }}" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label class="dropzone" for="file" data-dropzone>
+    <svg viewBox="0 0 48 36" aria-hidden="true" class="dropzone-icon">
+      <rect x="2" y="2" width="44" height="32" rx="3" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M3 4l21 16L45 4" fill="none" stroke="currentColor" stroke-width="2.5"/>
+    </svg>
+    <span class="dropzone-text" data-filename>Drop an .eml file here, or choose one</span>
+    <span class="dropzone-hint">Up to 10 MB. In Outlook use File › Save As; in Gmail use ⋮ › Download message.</span>
+    <input id="file" name="file" type="file" accept=".eml,message/rfc822" required>
+  </label>
+
+  <fieldset class="options">
+    <legend>Extra checks</legend>
+    <label class="check">
+      <input type="checkbox" name="live" value="1">
+      <span><b>Re-check SPF, DKIM and DMARC against live DNS</b><br>
+      Verifies the DKIM signature and the sender's published policies. Makes DNS queries to the sender's domains.</span>
+    </label>
+    <label class="check {% if not vt_configured %}is-disabled{% endif %}">
+      <input type="checkbox" name="vt" value="1" {% if not vt_configured %}disabled{% endif %}>
+      <span><b>Look up attachment hashes and links on VirusTotal</b><br>
+      {% if vt_configured %}Sends only hashes and URLs, never the email.{% else %}Set the <code>VT_API_KEY</code> environment variable and restart to enable.{% endif %}</span>
+    </label>
+  </fieldset>
+
+  <button class="button" type="submit">Analyse email</button>
+</form>
+
+{% if samples %}
+<section class="samples">
+  <h2>Or try a sample</h2>
+  <p class="muted">Inert examples of real techniques. Attacker domains and IPs use reserved test ranges.</p>
+  <ul class="sample-list">
+    {% for name, title in samples %}
+    <li>
+      <form action="{{ url_for('analyze_sample', name=name) }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="sample" type="submit"><span>{{ title }}</span><code>{{ name }}</code></button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if recent %}
+<section class="recent">
+  <h2>Recently analysed</h2>
+  <ul class="recent-list">
+    {% for row in recent %}
+    <li><a href="{{ url_for('report', analysis_id=row.id) }}"><span class="dot {{ row.verdict|verdict_class }}" aria-hidden="true"></span>{{ row.subject or '(no subject)' }}</a> <span class="muted">{{ row.verdict }}, {{ row.score }}/100</span></li>
+    {% endfor %}
+  </ul>
+  <p><a href="{{ url_for('dashboard') }}">See all analyses</a></p>
+</section>
+{% endif %}
+{% endblock %}
