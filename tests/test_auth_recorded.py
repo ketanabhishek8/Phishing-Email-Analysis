@@ -83,6 +83,11 @@ class RecordedAuthTests(unittest.TestCase):
         self.assertNotIn("?", section["recorded"]["dkim"]["detail"])
         self.assertIn("message not signed", section["recorded"]["dkim"]["detail"])
 
+    def test_header_d_none_is_not_a_domain(self):
+        section, _ = auth_for([("Authentication-Results", "spf=none smtp.mailfrom=a.test; dkim=none (message not signed) header.d=none; dmarc=none header.from=a.test")])
+        self.assertEqual(section["dkim_domains"], [])
+        self.assertNotIn("none=none", section["recorded"]["dkim"]["detail"])
+
     def test_dmarc_fail_is_high(self):
         _, findings = auth_for([("Authentication-Results", "mx.example.org; dmarc=fail (p=REJECT) header.from=paypal.com")])
         f = next(f for f in findings if f.title == "DMARC failed")

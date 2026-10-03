@@ -92,7 +92,8 @@ def parse_auth_results(value: str) -> dict:
 
 def _dkim_domain(props: dict) -> str:
     domain = props.get("header.d") or props.get("header.i", "").lstrip("@").split("@")[-1]
-    return domain.lower()
+    domain = domain.lower()
+    return "" if domain in ("none", "") else domain
 
 
 def _summarise(parsed: dict, source: str) -> dict:
