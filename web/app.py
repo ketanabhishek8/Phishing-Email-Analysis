@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hmac
 import io
+import logging
 import os
 import re
 import secrets
@@ -31,6 +32,7 @@ from urllib.parse import urlsplit
 
 from flask import Flask, Request, abort, g, jsonify, redirect, render_template, request, url_for
 from markupsafe import Markup
+from werkzeug.exceptions import HTTPException
 
 from phishkit import __version__
 from phishkit.analyzer import analyze
@@ -46,6 +48,8 @@ STATIC_DIR = ROOT / "public" / "static"  # Vercel serves public/** from its CDN;
 MAX_UPLOAD = 10 * 1024 * 1024
 MAX_UPLOAD_HOSTED = 4 * 1024 * 1024  # serverless request bodies are limited to 4.5 MB
 CSRF_COOKIE = "phishkit_csrf"
+
+log = logging.getLogger("phishkit.web")
 
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
        "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
@@ -120,6 +124,8 @@ def create_app(db_path: str | None = None, testing: bool = False, hosted: bool |
         sent = request.form.get("csrf_token", "")
         expected = request.cookies.get(CSRF_COOKIE, "")
         if not expected or not hmac.compare_digest(sent, expected):
+            log.warning("refused POST %s: CSRF token %s", request.path,
+                        "cookie missing" if not expected else "mismatch")
             abort(400, description="Your session expired or the form was submitted from another site. "
                                    "Reload the page and try again.")
 
@@ -149,12 +155,29 @@ def create_app(db_path: str | None = None, testing: bool = False, hosted: bool |
     # attachment named "inv\u202efdp.exe" is displayed as "inv<U+202E>fdp.exe".
     app.jinja_env.finalize = lambda v: v if isinstance(v, Markup) or not isinstance(v, str) else reveal(v)
 
+    def refuse(reason: str):
+        # Logged so a rejection can be diagnosed from the host's function logs.
+        log.warning("refused POST %s: %s (Origin=%r Host=%r X-Forwarded-Host=%r Sec-Fetch-Site=%r)",
+                    request.path, reason, request.headers.get("Origin"), request.host,
+                    request.headers.get("X-Forwarded-Host"), request.headers.get("Sec-Fetch-Site"))
+        abort(403, description="Requests from other websites are not accepted.")
+
     @app.before_request
     def refuse_cross_origin_posts():
-        """Browsers send Origin on cross-site POSTs. Refusing foreign origins stops other
-        websites from driving the local API (e.g. spending the VirusTotal quota)."""
+        """Stop other websites from driving the app (e.g. spending the VirusTotal quota).
+
+        Prefer Sec-Fetch-Site: the browser sets it, pages cannot forge it and proxies do not
+        rewrite it. Behind a hosting proxy the Host header the app sees can differ from the
+        address in the browser, so comparing Origin with Host is only the fallback for
+        browsers that do not send Sec-Fetch-Site.
+        """
         if request.method != "POST":
             return None
+        fetch_site = request.headers.get("Sec-Fetch-Site")
+        if fetch_site:
+            if fetch_site in ("same-origin", "none"):
+                return None
+            refuse(f"Sec-Fetch-Site is {fetch_site}")
         origin = request.headers.get("Origin")
         if origin is None:
             return None  # non-browser clients (curl, scripts) send no Origin
@@ -163,7 +186,7 @@ def create_app(db_path: str | None = None, testing: bool = False, hosted: bool |
         allowed = {h.strip("[]").lower() for h in (app.config["TRUSTED_HOSTS"] or [])}
         if origin == "null" or not (parts.netloc.lower() in own_hosts
                                     or (parts.hostname or "").lower() in allowed):
-            abort(403, description="Requests from other websites are not accepted.")
+            refuse("Origin does not match this site")
         return None
 
     @app.context_processor
@@ -274,5 +297,16 @@ def create_app(db_path: str | None = None, testing: bool = False, hosted: bool |
             return render_template("error.html", code=exc.code, message=message), exc.code
         except Exception:  # e.g. untrusted Host header: no URL adapter to build page links
             return message or "Bad request", exc.code, {"Content-Type": "text/plain; charset=utf-8"}
+
+    @app.errorhandler(Exception)
+    def unexpected(exc):
+        if isinstance(exc, HTTPException):
+            return exc
+        log.exception("unhandled error on %s %s", request.method, request.path)
+        message = ("Something went wrong while handling that request. The error has been logged; "
+                   "try again, or try a different email.")
+        if request.path.startswith("/api/"):
+            return jsonify(error=message), 500
+        return render_template("error.html", code=500, message=message), 500
 
     return app

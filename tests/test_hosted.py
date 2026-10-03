@@ -99,6 +99,37 @@ class HostedModeTests(unittest.TestCase):
                          data={"file": (io.BytesIO(make_eml()), "m.eml")}, content_type="multipart/form-data")
         self.assertEqual(resp.status_code, 200)
 
+    def test_proxy_rewritten_host_does_not_break_same_origin_clicks(self):
+        # Behind Vercel's proxy the Host the app sees can differ from the browser's address.
+        token = self.token()
+        internal = "phishing-email-analysis-2pokt-tsurai.vercel.app"
+        # The browser sends the cookie for its own address; the test client keys cookies by the
+        # host it requests, so mirror the cookie onto the internal host the app sees.
+        self.client.set_cookie("phishkit_csrf", token, domain=internal)
+        resp = self.client.post("/samples/06-legit-newsletter.eml",
+                                base_url=f"https://{internal}",
+                                headers={"Origin": f"https://{self.HOST}", "Sec-Fetch-Site": "same-origin"},
+                                data={"csrf_token": token})
+        self.assertEqual(resp.status_code, 200)
+
+    def test_browser_reported_cross_site_post_rejected(self):
+        resp = self.post("/api/analyze", headers={"Sec-Fetch-Site": "cross-site"},
+                         data={"file": (io.BytesIO(make_eml()), "m.eml")}, content_type="multipart/form-data")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_rejections_are_logged_for_diagnosis(self):
+        with self.assertLogs("phishkit.web", level="WARNING") as logs:
+            self.post("/api/analyze", headers={"Origin": "https://evil.example"},
+                      data={"file": (io.BytesIO(make_eml()), "m.eml")}, content_type="multipart/form-data")
+        self.assertIn("evil.example", "\n".join(logs.output))
+
+    def test_unexpected_error_gets_a_helpful_page(self):
+        from unittest import mock
+        with mock.patch("web.app.analyze", side_effect=RuntimeError("boom")):
+            resp = self.post("/samples/06-legit-newsletter.eml", data={"csrf_token": self.token()})
+        self.assertEqual(resp.status_code, 500)
+        self.assertIn("Something went wrong", resp.get_data(as_text=True))
+
     def test_history_routes_disabled(self):
         self.assertEqual(self.get("/report/1").status_code, 404)
         self.assertEqual(self.get("/api/report/1").status_code, 404)
