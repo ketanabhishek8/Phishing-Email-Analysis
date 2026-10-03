@@ -58,7 +58,8 @@ web/
   app.py             # Flask factory: create_app(db_path)
   store.py           # SQLite persistence of reports (JSON blob + summary columns)
   templates/         # base, index (upload), report, dashboard
-  static/            # style.css (no external CDNs)
+public/static/       # style.css, app.js, favicon (no external CDNs; Vercel serves public/** from its CDN)
+app.py               # WSGI entry point (Vercel / gunicorn); hosted mode is stateless
 samples/             # crafted .eml files (+ corpus/ if downloaded)
 tests/               # unittest suites per module + web tests
 docs/                # sample-analyses.md, defending-against-phishing.md

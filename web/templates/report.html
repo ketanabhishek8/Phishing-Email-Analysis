@@ -12,7 +12,7 @@
     <div><dt>From</dt><dd>{{ r.summary.from or '(none)' }}</dd></div>
     <div><dt>To</dt><dd>{{ r.summary.to or '(none)' }}</dd></div>
     <div><dt>Date</dt><dd>{{ r.summary.date or '(none)' }}</dd></div>
-    <div><dt>File</dt><dd>{{ row.filename }}, analysed {{ row.created_at.replace('T', ' ').replace('+00:00', ' UTC') }}</dd></div>
+    <div><dt>File</dt><dd>{{ row.filename }}, analysed {{ row.created_at.replace('T', ' ').replace('+00:00', ' UTC') }}{% if row.id is none %} (not stored){% endif %}</dd></div>
   </dl>
 </section>
 
@@ -168,6 +168,10 @@
   </details>
   {% endif %}
   {% if r.body_preview.truncated %}<p class="muted">Long bodies are truncated in this view.</p>{% endif %}
+  {% if row.id is not none %}
   <p><a href="{{ url_for('api_report', analysis_id=row.id) }}" download="phishkit-report-{{ row.id }}.json">Download the full report as JSON</a></p>
+  {% else %}
+  <p class="muted">This report is not stored and will be gone when you leave the page. For JSON output, post the file to <code>/api/analyze</code>.</p>
+  {% endif %}
 </section>
 {% endblock %}

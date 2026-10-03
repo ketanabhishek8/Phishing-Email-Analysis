@@ -93,6 +93,27 @@ curl -F file=@suspicious.eml "http://127.0.0.1:5000/api/analyze?live=1"
 curl http://127.0.0.1:5000/api/report/3                                  # a saved report
 ```
 
+### Deploy (Vercel or any WSGI host)
+
+The repo deploys to Vercel as-is: `app.py` exposes the Flask `app`, static assets live in
+`public/static/`, and `vercel.json` bundles the templates and samples. Import the repository
+in Vercel and deploy; no settings are required. Elsewhere, run `gunicorn app:app`.
+
+When it detects Vercel (or `PHISHKIT_HOSTED=1`), the app switches to **hosted mode**:
+
+- it is stateless. Each report is rendered once in the response and never stored, so visitors
+  never see each other's emails, and serverless instances never disagree about history;
+- the dashboard explains that no history is kept;
+- uploads are capped at 4 MB (serverless request bodies are limited to 4.5 MB);
+- it answers on its public domain (the localhost-only Host check is a local-mode protection
+  against DNS rebinding). Cross-site POSTs are still refused, and CSRF uses a double-submit
+  cookie, so no shared secret is needed;
+- optional settings: `VT_API_KEY` to enable VirusTotal, `PHISHKIT_TRUSTED_HOSTS` (comma-separated)
+  to restrict which domains the app answers on.
+
+A public deployment means uploaded emails are processed on the host's servers, so use it for
+demos and samples, and run PhishKit locally for real or confidential mail.
+
 To enable VirusTotal, get a free API key and start the app (or CLI) with
 `VT_API_KEY=your-key python -m web`. The free tier allows 4 lookups per minute; PhishKit
 stops cleanly and says so when it hits the limit.
@@ -139,7 +160,9 @@ phishkit/
   scoring.py       weights -> score -> verdict
   analyzer.py      runs every module and builds the Report
   render.py, cli.py
-web/               Flask app, SQLite store, templates, CSS (no external assets)
+web/               Flask app (local and hosted modes), SQLite store, templates
+public/static/     CSS, JS and icon (served by the CDN when hosted; no external assets)
+app.py             WSGI entry point for hosting (Vercel, gunicorn)
 ```
 
 Each analysis module takes the parsed email and returns `(section_data, findings)`, so modules

@@ -39,6 +39,11 @@
   </tbody>
 </table>
 </div>
+{% elif not hosted_history %}
+<section class="empty-state">
+  <p><b>The hosted demo keeps no history.</b> Each report is shown once and never stored, so other visitors can never see the emails you upload. Run PhishKit on your own machine to keep a dashboard of past analyses.</p>
+  <p><a class="button" href="{{ url_for('index') }}">Analyse an email</a></p>
+</section>
 {% else %}
 <section class="empty-state">
   <p><b>No emails analysed yet.</b> Upload a suspicious email or try one of the samples, and it will be listed here.</p>

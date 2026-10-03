@@ -13,7 +13,7 @@
       <path d="M3 4l21 16L45 4" fill="none" stroke="currentColor" stroke-width="2.5"/>
     </svg>
     <span class="dropzone-text" data-filename>Drop an .eml file here, or choose one</span>
-    <span class="dropzone-hint">Up to 10 MB. In Outlook use File › Save As; in Gmail use ⋮ › Download message.</span>
+    <span class="dropzone-hint">Up to {{ max_upload_mb }} MB. In Outlook use File › Save As; in Gmail use ⋮ › Download message.</span>
     <input id="file" name="file" type="file" accept=".eml,message/rfc822" required>
   </label>
 
