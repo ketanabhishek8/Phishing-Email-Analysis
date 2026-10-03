@@ -28,9 +28,26 @@ def _msgid_domain(message_id: str) -> str:
     return match.group(1).lower().strip(".") if match else ""
 
 
+def parse_from(value: str) -> tuple[str, str]:
+    """Split a From header into (display name, address), tolerating malformed headers.
+
+    Phishers sometimes break the syntax on purpose (e.g. 'Brand team ,_<x@evil>') so that
+    strict parsers return nothing; fall back to the last address in angle brackets.
+    """
+    name, address = parseaddr(value or "")
+    if "@" in address:
+        return name, address
+    match = re.search(r"<\s*([^<>\s]+@[^<>\s]+)\s*>\s*$", value or "")
+    if match:
+        display = value[: match.start()].strip().strip(",_ ").strip('"').strip(",_ ")
+        return display, match.group(1)
+    addresses = _EMAIL_IN_TEXT.findall(value or "")
+    return (name, addresses[-1]) if addresses else (name, address)
+
+
 def analyze_senders(email: ParsedEmail) -> tuple[dict, list[Finding]]:
     findings: list[Finding] = []
-    from_name, from_address = parseaddr(email.from_)
+    from_name, from_address = parse_from(email.from_)
     from_domain = domain_of(from_address)
     reply_to = email.get("Reply-To") or ""
     return_path = email.get("Return-Path") or ""

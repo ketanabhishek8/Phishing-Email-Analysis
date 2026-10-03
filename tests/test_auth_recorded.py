@@ -32,6 +32,14 @@ class ParseAuthResultsTests(unittest.TestCase):
         self.assertEqual(methods["dmarc"]["props"]["header.from"], "example.com")
         self.assertIn("p=REJECT", methods["dmarc"]["comment"])
 
+    def test_microsoft_style_header_without_authserv_id(self):
+        parsed = parse_auth_results(
+            "spf=none (sender IP is 192.0.2.1) smtp.mailfrom=evil.test; dkim=fail (body hash did not verify) "
+            "header.d=microsoft.com;dmarc=fail action=oreject header.from=microsoft.com;compauth=fail reason=000")
+        self.assertEqual(parsed["authserv_id"], "")
+        methods = {r["method"]: r["result"] for r in parsed["results"]}
+        self.assertEqual(methods, {"spf": "none", "dkim": "fail", "dmarc": "fail", "compauth": "fail"})
+
     def test_none_result(self):
         parsed = parse_auth_results("mx.example.org; none")
         self.assertEqual(parsed["results"], [])

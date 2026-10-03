@@ -61,6 +61,15 @@ class SenderTests(unittest.TestCase):
         f = finding(findings, "Free webmail account posing as an organisation")
         self.assertEqual(f.severity, Severity.MEDIUM)
 
+    def test_malformed_from_with_comma_still_parsed(self):
+        # Seen in real phishing: an unquoted comma splits the display name from the address.
+        raw = b"From: Microsoft account team ,_<no-reply@access-accsecurity.test>\r\nTo: a@b.example\r\nSubject: s\r\n\r\nbody\r\n"
+        section, findings = analyze_senders(parse_email(raw))
+        self.assertEqual(section["from_address"], "no-reply@access-accsecurity.test")
+        self.assertIn("Microsoft account team", section["from_name"])
+        self.assertIsNone(finding(findings, "Missing From address"))
+        self.assertIsNotNone(finding(findings, "Display name impersonates a brand"))
+
     def test_missing_from(self):
         _, findings = run({"From": None})
         self.assertIsNotNone(finding(findings, "Missing From address"))

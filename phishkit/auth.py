@@ -63,9 +63,15 @@ def parse_auth_results(value: str) -> dict:
     # ARC-Authentication-Results starts with an instance tag: "i=1; authserv-id; ..."
     if segments and re.fullmatch(r"i=\d+", segments[0]):
         segments, comments = segments[1:], comments[1:]
-    authserv_id = segments[0].split()[0] if segments and segments[0] else ""
+    # RFC 8601 starts with the authserv-id, but Microsoft 365 omits it and begins
+    # straight with "spf=...". Detect that by the method=result shape of the first token.
+    first = segments[0].split()[0] if segments and segments[0] else ""
+    if re.fullmatch(r"[a-z][a-z0-9-]*(/[0-9]+)?=[a-z]+", first, re.I):
+        authserv_id, start = "", 0
+    else:
+        authserv_id, start = first, 1
     results = []
-    for segment, seg_comments in zip(segments[1:], comments[1:]):
+    for segment, seg_comments in zip(segments[start:], comments[start:]):
         tokens = segment.split()
         if not tokens or "=" not in tokens[0]:
             continue  # "none" or garbage

@@ -4,3 +4,6 @@ __pycache__/
 instance/
 .DS_Store
 *.egg-info/
+
+# Real phishing emails fetched by scripts/fetch_corpus.py (not republished)
+samples/corpus/
