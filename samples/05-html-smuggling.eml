@@ -1,0 +1,58 @@
+Authentication-Results: mx.fabrikam.example; spf=pass smtp.mailfrom=docusign-notify.test; dkim=pass header.d=docusign-notify.test header.s=k1 header.b=Ym9ndXM; dmarc=pass action=none header.from=docusign-notify.test
+Received: from smtp.docusign-notify.test (smtp.docusign-notify.test [203.0.113.200]) by mx.fabrikam.example with ESMTPS; Fri, 25 Sep 2026 14:20:44 +0000
+From: "DocuSign" <dse@docusign-notify.test>
+To: payables@fabrikam.example
+Subject: Completed: Remittance Advice 0923 - please review
+Date: Fri, 25 Sep 2026 14:20:40 +0000
+Message-ID: <0923.remit@smtp.docusign-notify.test>
+Return-Path: <bounce@docusign-notify.test>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="=_phishkit_05_0"
+
+--=_phishkit_05_0
+Content-Type: multipart/alternative; boundary="=_phishkit_05_1"
+
+--=_phishkit_05_1
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Your document has been completed.
+Open the attached remittance advice to review and download your copy.
+
+DocuSign Electronic Signature Service
+
+--=_phishkit_05_1
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial">
+<div style=3D"background:#1e1e5c;color:#fff;padding:16px"><b>DocuSign</b></di=
+v>
+<p>Your document has been completed.</p>
+<p>Open the attached <b>Remittance_Advice_0923.html</b> to review and downloa=
+d your copy.</p>
+</body></html>
+
+--=_phishkit_05_1--
+
+--=_phishkit_05_0
+Content-Type: text/html
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="Remittance_Advice_0923.html"
+MIME-Version: 1.0
+
+PCFET0NUWVBFIGh0bWw+CjxodG1sPjxoZWFkPjx0aXRsZT5SZW1pdHRhbmNlIEFkdmljZTwvdGl0
+bGU+PC9oZWFkPgo8Ym9keSBzdHlsZT0iZm9udC1mYW1pbHk6QXJpYWwiPgo8cD5Mb2FkaW5nIHlv
+dXIgc2VjdXJlIGRvY3VtZW50LCBwbGVhc2Ugd2FpdC4uLjwvcD4KPHNjcmlwdD4KICAvLyBUZWNo
+bmlxdWUgZGVtbyBvbmx5OiBkZWNvZGVzIGEgaGFybWxlc3Mgc2VudGVuY2UgYW5kIG9mZmVycyBp
+dCBhcyBhIGRvd25sb2FkLgogIHZhciBkYXRhID0gYXRvYigiVkdocGN5QnBjeUJoSUdoaGNtMXNa
+WE56SUZCb2FYTm9TMmwwSUhSbGMzUWdabWxzWlM0Z1RtOGdiV0ZzZDJGeVpTQm9aWEpsTGc9PSIp
+OwogIHZhciBieXRlcyA9IG5ldyBVaW50OEFycmF5KGRhdGEubGVuZ3RoKTsKICBmb3IgKHZhciBp
+ID0gMDsgaSA8IGRhdGEubGVuZ3RoOyBpKyspIGJ5dGVzW2ldID0gZGF0YS5jaGFyQ29kZUF0KGkp
+OwogIHZhciBibG9iID0gbmV3IEJsb2IoW2J5dGVzXSwge3R5cGU6ICJhcHBsaWNhdGlvbi9vY3Rl
+dC1zdHJlYW0ifSk7CiAgdmFyIGEgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCJhIik7CiAgYS5o
+cmVmID0gVVJMLmNyZWF0ZU9iamVjdFVSTChibG9iKTsKICBhLmRvd25sb2FkID0gIlJlbWl0dGFu
+Y2VfMDkyMy5pc28iOwogIGEuY2xpY2soKTsKPC9zY3JpcHQ+CjwvYm9keT48L2h0bWw+Cg==
+
+--=_phishkit_05_0--

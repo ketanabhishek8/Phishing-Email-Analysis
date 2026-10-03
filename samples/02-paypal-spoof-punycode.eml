@@ -1,0 +1,38 @@
+Authentication-Results: mx.mail-provider.example; spf=fail (mx.mail-provider.example: domain of root@vps-2231.test does not designate 198.51.100.23 as permitted sender) smtp.mailfrom=root@vps-2231.test; dkim=none; dmarc=fail (p=REJECT sp=REJECT dis=QUARANTINE) header.from=paypal.com
+Received: from vps-2231.test (vps-2231.test [198.51.100.23]) by mx.mail-provider.example with ESMTP id 4f2a; Tue, 22 Sep 2026 17:41:55 +0000
+From: "PayPal" <service@paypal.com>
+To: customer@mail-provider.example
+Subject: Your account has been limited - confirm your information
+Date: Tue, 22 Sep 2026 17:41:50 +0000
+Message-ID: <1726000915.2231@vps-2231.test>
+Return-Path: <root@vps-2231.test>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="=_phishkit_02_0"
+
+--=_phishkit_02_0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+We noticed unusual activity. Your PayPal account has been limited.
+Confirm your information within 48 hours: https://bit.ly/3pPaYpL-verify
+
+--=_phishkit_02_0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Helvetica,Arial">
+<h2 style=3D"color:#003087">PayPal</h2>
+<p>Dear Customer,</p>
+<p>We noticed unusual activity and have <b>limited your account</b>. Confirm =
+your information within 48 hours to restore access.</p>
+<p><a href=3D"https://xn--ypal-43d9g.test/signin?session=3D9a7e">Confirm your=
+ information</a></p>
+<p>Or sign in at <a href=3D"http://198.51.100.23/paypal/webscr?cmd=3D_login-r=
+un">www.paypal.com</a></p>
+<p>Resolution centre: <a href=3D"https://paypal.com.account-verify.test/resol=
+ution">https://paypal.com/resolution</a></p>
+<p>Shortcut: https://bit.ly/3pPaYpL-verify</p>
+</body></html>
+
+--=_phishkit_02_0--

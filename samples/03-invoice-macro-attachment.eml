@@ -1,0 +1,51 @@
+Authentication-Results: mx.fabrikam.example; spf=pass smtp.mailfrom=northwind-traders.test; dkim=pass header.d=northwind-traders.test header.s=sel1 header.b=Qm9ndXM; dmarc=pass action=none header.from=northwind-traders.test
+Received: from mail.northwind-traders.test (mail.northwind-traders.test [192.0.2.80]) by mx.fabrikam.example with ESMTPS; Wed, 23 Sep 2026 11:02:31 +0000
+From: "Accounts Receivable" <ar@northwind-traders.test>
+Reply-To: phishkit-sample-ar-payments@outlook.com
+To: ap@fabrikam.example
+Subject: RE: Overdue invoice INV-20931 - final notice
+Date: Wed, 23 Sep 2026 11:02:25 +0000
+Message-ID: <a81c2f9e-20931@mail.northwind-traders.test>
+Return-Path: <ar@northwind-traders.test>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="=_phishkit_03_0"
+
+--=_phishkit_03_0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Hello,
+
+Please find attached the overdue invoice INV-20931. Our bank details have cha=
+nged; the new details are in the document.
+You may need to click 'Enable Editing' and 'Enable Content' to view it correc=
+tly.
+
+Please process payment today to avoid late fees.
+
+Regards,
+Accounts Receivable
+Northwind Traders
+
+--=_phishkit_03_0
+Content-Type: application/vnd.ms-word.document.macroEnabled.12
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="Invoice_INV-20931.docm"
+MIME-Version: 1.0
+
+UEsDBBQAAAAAAABINV3muHRrYgAAAGIAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbDw/eG1sIHZl
+cnNpb249IjEuMCI/PjxUeXBlcyB4bWxucz0iaHR0cDovL3NjaGVtYXMub3BlbnhtbGZvcm1hdHMu
+b3JnL3BhY2thZ2UvMjAwNi9jb250ZW50LXR5cGVzIi8+UEsDBBQAAAAAAABINV1Qlkeb3QAAAN0A
+AAARAAAAd29yZC9kb2N1bWVudC54bWw8P3htbCB2ZXJzaW9uPSIxLjAiPz48dzpkb2N1bWVudCB4
+bWxuczp3PSJodHRwOi8vc2NoZW1hcy5vcGVueG1sZm9ybWF0cy5vcmcvd29yZHByb2Nlc3Npbmdt
+bC8yMDA2L21haW4iPjx3OmJvZHk+PHc6cD48dzpyPjx3OnQ+SW52b2ljZSBJTlYtMjA5MzEuIEVu
+YWJsZSBlZGl0aW5nIGFuZCBjb250ZW50IHRvIHZpZXcuPC93OnQ+PC93OnI+PC93OnA+PC93OmJv
+ZHk+PC93OmRvY3VtZW50PlBLAwQUAAAAAAAASDVdwPcL5kEAAABBAAAAEwAAAHdvcmQvdmJhUHJv
+amVjdC5iaW5QaGlzaEtpdCBpbmVydCB0ZXN0IHN0YW5kLWluIGZvciBhIFZCQSBwcm9qZWN0LiBD
+b250YWlucyBubyBjb2RlLlBLAQIUAxQAAAAAAABINV3muHRrYgAAAGIAAAATAAAAAAAAAAAAAACA
+AQAAAABbQ29udGVudF9UeXBlc10ueG1sUEsBAhQDFAAAAAAAAEg1XVCWR5vdAAAA3QAAABEAAAAA
+AAAAAAAAAIABkwAAAHdvcmQvZG9jdW1lbnQueG1sUEsBAhQDFAAAAAAAAEg1XcD3C+ZBAAAAQQAA
+ABMAAAAAAAAAAAAAAIABnwEAAHdvcmQvdmJhUHJvamVjdC5iaW5QSwUGAAAAAAMAAwDBAAAAEQIA
+AAAA
+
+--=_phishkit_03_0--

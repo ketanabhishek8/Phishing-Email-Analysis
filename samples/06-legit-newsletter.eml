@@ -1,0 +1,42 @@
+Authentication-Results: mx.mail-provider.example; spf=pass smtp.mailfrom=bounces.example.com; dkim=pass header.d=example.com header.s=news2026 header.b=TGVnaXQ; dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=example.com
+Received: from out-12.mail.example.com (out-12.mail.example.com [192.0.2.12]) by mx.mail-provider.example with ESMTPS; Sat, 26 Sep 2026 07:00:03 +0000
+From: "The Example Weekly" <news@example.com>
+To: reader@mail-provider.example
+Subject: This week: five tips for safer passwords
+Date: Sat, 26 Sep 2026 07:00:00 +0000
+Message-ID: <weekly-2026-39@news.example.com>
+Return-Path: <bounce-reader@bounces.example.com>
+List-Unsubscribe: <https://www.example.com/unsubscribe?u=4821>,
+ <mailto:unsubscribe@example.com>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="=_phishkit_06_0"
+
+--=_phishkit_06_0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+The Example Weekly - issue 39
+
+Five tips for safer passwords: https://www.example.com/blog/password-tips
+
+Unsubscribe: https://www.example.com/unsubscribe?u=4821
+
+--=_phishkit_06_0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Georgia,serif">
+<h1>The Example Weekly</h1>
+<p>Issue 39 &middot; Five tips for safer passwords</p>
+<p>Password managers, passphrases and multi-factor authentication make the bi=
+ggest difference.
+<a href=3D"https://www.example.com/blog/password-tips">Read the article</a>.<=
+/p>
+<p style=3D"font-size:12px;color:#777">You are receiving this because you sub=
+scribed at example.com.
+<a href=3D"https://www.example.com/unsubscribe?u=3D4821">Unsubscribe</a></p>
+</body></html>
+
+--=_phishkit_06_0--

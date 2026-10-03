@@ -1,0 +1,25 @@
+Authentication-Results: mx.contoso-corp.example; spf=pass smtp.mailfrom=gmail.com; dkim=pass header.d=gmail.com header.s=20230601; dmarc=pass (p=NONE sp=QUARANTINE dis=NONE) header.from=gmail.com
+Received: from mail-sor-f41.google.com (mail-sor-f41.google.com [198.51.100.141]) by mx.contoso-corp.example with ESMTPS; Thu, 24 Sep 2026 06:55:12 +0000
+From: "James Carter (CEO) jcarter@contoso-corp.example"
+ <phishkit-sample-ceo-office@gmail.com>
+Reply-To: phishkit-sample-exec@outlook.com
+To: finance.team@contoso-corp.example
+Subject: Urgent - confidential request
+Date: Thu, 24 Sep 2026 06:55:08 +0000
+Message-ID: <CAJx7K2pQ8f1-ceo@mail.gmail.com>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Hi,
+
+Are you at your desk? I need you to process an urgent wire transfer for an ac=
+quisition we are closing today. It is confidential, so please do not discuss =
+it with anyone else in the office.
+
+I'm in meetings all day and can only be reached by email. Reply and I will se=
+nd the beneficiary details.
+
+James Carter
+Chief Executive Officer
+Sent from my iPhone
