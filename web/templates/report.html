@@ -12,7 +12,7 @@
     <div><dt>From</dt><dd>{{ r.summary.from or '(none)' }}</dd></div>
     <div><dt>To</dt><dd>{{ r.summary.to or '(none)' }}</dd></div>
     <div><dt>Date</dt><dd>{{ r.summary.date or '(none)' }}</dd></div>
-    <div><dt>File</dt><dd>{{ row.filename }}, analysed {{ row.created_at.replace('T', ' ').replace('+00:00', ' UTC') }}{% if row.id is none %} (not stored){% endif %}</dd></div>
+    <div><dt>File</dt><dd>{{ row.filename }}, analysed {{ row.created_at.replace('T', ' ').replace('+00:00', ' UTC') }}{% if row.from_history %} (opened from this browser's history){% elif row.id is none %} (not stored on the server){% endif %}</dd></div>
   </dl>
 </section>
 
@@ -171,7 +171,12 @@
   {% if row.id is not none %}
   <p><a href="{{ url_for('api_report', analysis_id=row.id) }}" download="phishkit-report-{{ row.id }}.json">Download the full report as JSON</a></p>
   {% else %}
-  <p class="muted">This report is not stored and will be gone when you leave the page. For JSON output, post the file to <code>/api/analyze</code>.</p>
+  <p class="muted">This report is not stored on the server. A copy is saved only in this browser's history, on the Dashboard. For JSON output, post the file to <code>/api/analyze</code>.</p>
   {% endif %}
 </section>
+{% if row.save_to_browser %}
+{# Read by app.js and saved to this browser's localStorage. tojson escapes <, > and & so the
+   email's content cannot close this block; type="application/json" is data, never executed. #}
+<script type="application/json" id="phishkit-report">{{ {"filename": row.filename, "created_at": row.created_at, "report": r}|tojson }}</script>
+{% endif %}
 {% endblock %}

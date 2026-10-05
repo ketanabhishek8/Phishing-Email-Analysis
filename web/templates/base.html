@@ -30,7 +30,7 @@
   </main>
   <footer class="footer">
     {% if hosted %}
-    <p>PhishKit {{ version }}, hosted demo. Uploaded emails are analysed on the server and the report is shown once; nothing is stored. Avoid uploading confidential mail here: for real triage, run PhishKit on your own machine.</p>
+    <p>PhishKit {{ version }}, hosted demo. Uploaded emails are analysed on the server but never stored there; your report history is kept only in this browser. Avoid uploading confidential mail here: for real triage, run PhishKit on your own machine.</p>
     {% else %}
     <p>PhishKit {{ version }}. Runs on this computer. Email content never leaves it; only live DNS lookups and opt-in VirusTotal hash and URL lookups use the network.</p>
     {% endif %}

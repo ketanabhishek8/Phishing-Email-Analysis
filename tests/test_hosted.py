@@ -130,10 +130,67 @@ class HostedModeTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 500)
         self.assertIn("Something went wrong", resp.get_data(as_text=True))
 
-    def test_history_routes_disabled(self):
+    def test_server_side_history_routes_disabled(self):
         self.assertEqual(self.get("/report/1").status_code, 404)
         self.assertEqual(self.get("/api/report/1").status_code, 404)
-        self.assertIn("keeps no history", self.get("/dashboard").get_data(as_text=True))
+
+    # ---- browser-side history (localStorage) ----
+
+    def report_page(self, raw=None, name="m.eml"):
+        raw = raw or (SAMPLES / "04-bec-ceo-fraud.eml").read_bytes()
+        return self.post("/analyze", data={"file": (io.BytesIO(raw), name), "csrf_token": self.token()},
+                         content_type="multipart/form-data").get_data(as_text=True)
+
+    def embedded(self, page):
+        import json
+        block = re.search(r'<script type="application/json" id="phishkit-report">(.*?)</script>', page, re.S)
+        self.assertIsNotNone(block, "report page must embed its data for browser history")
+        return json.loads(block.group(1))
+
+    def test_report_page_embeds_data_for_browser_history(self):
+        data = self.embedded(self.report_page())
+        self.assertEqual(data["filename"], "m.eml")
+        self.assertEqual(data["report"]["verdict"], "Likely phishing")
+        self.assertIn("created_at", data)
+
+    def test_embedded_data_cannot_break_out_of_script_block(self):
+        raw = make_eml(headers={"Subject": "</script><script>alert(1)</script>"})
+        page = self.report_page(raw)
+        self.assertNotIn("<script>alert(1)", page)
+        self.assertEqual(self.embedded(page)["report"]["summary"]["subject"], "</script><script>alert(1)</script>")
+
+    def test_dashboard_is_built_from_browser_history(self):
+        page = self.get("/dashboard").get_data(as_text=True)
+        self.assertIn("data-browser-history", page)
+        self.assertIn("<noscript>", page)
+        self.assertIn("saved in this browser", page)
+
+    def test_view_saved_report_rerenders_it(self):
+        import json
+        saved = self.embedded(self.report_page())
+        resp = self.post("/history/view", data={"csrf_token": self.token(), "entry": json.dumps(saved)})
+        self.assertEqual(resp.status_code, 200)
+        page = resp.get_data(as_text=True)
+        self.assertIn("Urgent - confidential request", page)
+        self.assertNotIn('id="phishkit-report"', page)  # viewing must not save a duplicate
+
+    def test_view_rejects_malformed_entries(self):
+        for entry in ("not json", "[]", '{"report": {"verdict": 5}}', '{"filename": "x"}'):
+            resp = self.post("/history/view", data={"csrf_token": self.token(), "entry": entry})
+            self.assertEqual(resp.status_code, 400, entry)
+
+    def test_view_requires_csrf(self):
+        self.get("/")
+        self.assertEqual(self.post("/history/view", data={"entry": "{}"}).status_code, 400)
+
+    def test_view_escapes_hostile_saved_data(self):
+        import json
+        saved = self.embedded(self.report_page())
+        saved["report"]["summary"]["subject"] = "<img src=x onerror=alert(1)>"
+        page = self.post("/history/view", data={"csrf_token": self.token(),
+                                                "entry": json.dumps(saved)}).get_data(as_text=True)
+        self.assertNotIn("<img src=x", page)
+        self.assertIn("&lt;img src=x", page)
 
     def test_footer_does_not_claim_local_processing(self):
         page = self.get("/").get_data(as_text=True)

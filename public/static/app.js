@@ -27,6 +27,168 @@
     });
   }
 
+  // ---------------------------------------------------------------- browser history
+  // Hosted mode stores nothing on the server. Each report page embeds its data; we keep the
+  // most recent reports in this browser's localStorage and build the dashboard from them.
+  // Everything from the email is inserted with textContent, never as HTML.
+  var HISTORY_KEY = "phishkit.history.v1";
+  var HISTORY_MAX = 25;
+  var VERDICT_CLASS = { "Clean": "clean", "Suspicious": "suspicious", "Likely phishing": "phishing" };
+
+  function loadHistory() {
+    var raw = window.localStorage.getItem(HISTORY_KEY);  // throws when storage is blocked
+    if (!raw) return [];
+    try {
+      var list = JSON.parse(raw);
+      return Array.isArray(list) ? list.filter(function (e) { return e && e.report && e.id; }) : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function saveHistory(list) {
+    // Drop the oldest entries until the list fits the browser's storage quota.
+    while (list.length) {
+      try {
+        window.localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+        return true;
+      } catch (err) {
+        if (list.length === 1) break;
+        list = list.slice(0, list.length - 1);
+      }
+    }
+    return false;
+  }
+
+  function newId() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return String(Date.now()) + "-" + Math.random().toString(16).slice(2);
+  }
+
+  var embedded = document.getElementById("phishkit-report");
+  if (embedded) {
+    try {
+      var entry = JSON.parse(embedded.textContent);
+      entry.id = newId();
+      saveHistory([entry].concat(loadHistory()).slice(0, HISTORY_MAX));
+    } catch (err) {
+      // Storage blocked or unreadable: the report itself is still on screen.
+    }
+  }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function scoreBar(score, verdictClass) {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", "mini");
+    svg.setAttribute("viewBox", "0 0 100 8");
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("aria-hidden", "true");
+    var track = document.createElementNS(ns, "rect");
+    track.setAttribute("class", "mini-track");
+    track.setAttribute("width", "100");
+    track.setAttribute("height", "8");
+    var fill = document.createElementNS(ns, "rect");
+    fill.setAttribute("class", "mini-fill " + verdictClass);
+    fill.setAttribute("width", String(Math.max(0, Math.min(100, Number(score) || 0))));
+    fill.setAttribute("height", "8");
+    svg.appendChild(track);
+    svg.appendChild(fill);
+    return svg;
+  }
+
+  function formatDate(iso) {
+    return String(iso || "").replace("T", " ").replace("+00:00", " UTC");
+  }
+
+  var historyRoot = document.querySelector("[data-browser-history]");
+  if (historyRoot) {
+    var part = function (name) { return historyRoot.querySelector("[data-history-" + name + "]"); };
+    var viewForm = part("view");
+
+    var render = function () {
+      var list;
+      try {
+        list = loadHistory();
+      } catch (err) {
+        part("unavailable").hidden = false;
+        return;
+      }
+      var rows = part("rows");
+      rows.textContent = "";
+      var counts = { "Likely phishing": 0, "Suspicious": 0, "Clean": 0 };
+
+      list.forEach(function (entry) {
+        var report = entry.report || {};
+        var summary = report.summary || {};
+        var verdict = String(report.verdict || "");
+        var vclass = VERDICT_CLASS[verdict] || "";
+        if (counts[verdict] !== undefined) counts[verdict] += 1;
+
+        var tr = el("tr");
+        var cell = el("td");
+        var open = el("button", "row-link link-button", summary.subject || "(no subject)");
+        open.type = "button";
+        open.addEventListener("click", function () {
+          viewForm.elements.entry.value = JSON.stringify(entry);
+          viewForm.submit();
+        });
+        cell.appendChild(open);
+        cell.appendChild(el("span", "muted mono small", summary.from || entry.filename || ""));
+        tr.appendChild(cell);
+
+        var vcell = el("td");
+        vcell.appendChild(el("span", "verdict-pill " + vclass, verdict));
+        tr.appendChild(vcell);
+
+        var scell = el("td", "num");
+        scell.appendChild(scoreBar(report.score, vclass));
+        scell.appendChild(document.createTextNode(" " + (Number(report.score) || 0)));
+        tr.appendChild(scell);
+
+        tr.appendChild(el("td", "muted small", formatDate(entry.created_at)));
+
+        var acell = el("td", "num");
+        var remove = el("button", "copy", "Remove");
+        remove.type = "button";
+        remove.setAttribute("aria-label", "Remove " + (summary.subject || "this report") + " from history");
+        remove.addEventListener("click", function () {
+          saveHistory(loadHistory().filter(function (e) { return e.id !== entry.id; }));
+          render();
+        });
+        acell.appendChild(remove);
+        tr.appendChild(acell);
+        rows.appendChild(tr);
+      });
+
+      var has = list.length > 0;
+      part("table").hidden = !has;
+      part("actions").hidden = !has;
+      part("empty").hidden = has;
+      var tally = part("tally");
+      tally.hidden = !has;
+      tally.textContent = has
+        ? list.length + " email" + (list.length === 1 ? "" : "s") + " analysed in this browser: " +
+          counts["Likely phishing"] + " likely phishing, " + counts["Suspicious"] + " suspicious, " +
+          counts["Clean"] + " clean"
+        : "";
+    };
+
+    part("clear").addEventListener("click", function () {
+      if (window.confirm("Remove every report from this browser's history?")) {
+        try { window.localStorage.removeItem(HISTORY_KEY); } catch (err) { /* nothing stored */ }
+        render();
+      }
+    });
+    render();
+  }
+
   document.querySelectorAll("button[data-copy]").forEach(function (button) {
     button.addEventListener("click", function () {
       if (!navigator.clipboard) return;

@@ -101,9 +101,13 @@ in Vercel and deploy; no settings are required. Elsewhere, run `gunicorn app:app
 
 When it detects Vercel (or `PHISHKIT_HOSTED=1`), the app switches to **hosted mode**:
 
-- it is stateless. Each report is rendered once in the response and never stored, so visitors
-  never see each other's emails, and serverless instances never disagree about history;
-- the dashboard explains that no history is kept;
+- the server is stateless: reports are never stored on it, so visitors never see each other's
+  emails and serverless instances never disagree about history;
+- history lives in each visitor's own browser. Every report page embeds its data, `app.js`
+  keeps the 25 most recent in `localStorage`, and the dashboard lists them (built with
+  `textContent`, so email content is never interpreted as HTML). Opening a saved report posts it
+  back to a stateless `/history/view` endpoint that validates and re-renders it; reports can be
+  removed one by one or cleared;
 - uploads are capped at 4 MB (serverless request bodies are limited to 4.5 MB);
 - it answers on its public domain (the localhost-only Host check is a local-mode protection
   against DNS rebinding). Cross-site POSTs are still refused, and CSRF uses a double-submit

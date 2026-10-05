@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hmac
 import io
+import json
 import logging
 import os
 import re
@@ -36,7 +37,7 @@ from werkzeug.exceptions import HTTPException
 
 from phishkit import __version__
 from phishkit.analyzer import analyze
-from phishkit.models import Severity
+from phishkit.models import Report, Severity
 from phishkit.textsafe import reveal
 from phishkit.urls import defang
 
@@ -81,6 +82,49 @@ def _sample_names() -> list[str]:
     if not SAMPLES_DIR.is_dir():
         return []
     return sorted(p.name for p in SAMPLES_DIR.glob("*.eml"))
+
+
+VERDICTS = ("Clean", "Suspicious", "Likely phishing")
+
+
+def _normalise_saved(entry) -> dict | None:
+    """Validate a browser-saved history entry and fill every key the report template uses.
+    Returns None when the entry is not a usable report."""
+    if not isinstance(entry, dict) or not isinstance(entry.get("report"), dict):
+        return None
+    saved = entry["report"]
+    if saved.get("verdict") not in VERDICTS or not isinstance(saved.get("score"), int):
+        return None
+    report = Report().to_dict()
+    for key, default in report.items():
+        value = saved.get(key, default)
+        report[key] = value if isinstance(value, type(default)) else default
+    findings = []
+    for f in report["findings"]:
+        if isinstance(f, dict) and isinstance(f.get("title"), str):
+            findings.append({"category": str(f.get("category", "")), "severity": str(f.get("severity", "info")),
+                             "weight": f["weight"] if isinstance(f.get("weight"), int) else 0,
+                             "title": f["title"], "detail": str(f.get("detail", "")),
+                             "evidence": str(f.get("evidence", ""))})
+    report["findings"] = findings
+    recorded = report["auth"].get("recorded") if isinstance(report["auth"].get("recorded"), dict) else {}
+    report["auth"] = {
+        "recorded": {m: recorded[m] if isinstance(recorded.get(m), dict) else
+                     {"result": "none", "detail": "", "source": ""} for m in ("spf", "dkim", "dmarc")},
+        "authserv_id": str(report["auth"].get("authserv_id") or ""),
+        "live": report["auth"].get("live") if isinstance(report["auth"].get("live"), dict) else None,
+    }
+    for m in ("spf", "dkim", "dmarc"):
+        rec = report["auth"]["recorded"][m]
+        rec["result"], rec["detail"] = str(rec.get("result", "none")), str(rec.get("detail", ""))
+    report["senders"].setdefault("mismatches", [])
+    report["urls"] = [u for u in report["urls"] if isinstance(u, dict) and isinstance(u.get("defanged"), str)]
+    report["attachments"] = [a for a in report["attachments"]
+                             if isinstance(a, dict) and all(isinstance(a.get(k), str) for k in
+                                                            ("filename", "md5", "sha1", "sha256"))]
+    report["received"] = [h for h in report["received"] if isinstance(h, dict)]
+    report["score"] = max(0, min(100, report["score"]))
+    return report
 
 
 def _hosted_from_env() -> bool:
@@ -144,8 +188,8 @@ def create_app(db_path: str | None = None, testing: bool = False, hosted: bool |
 
     def run_and_show(filename: str, data: bytes):
         report = analyze(data, live=bool(request.form.get("live")), vt=bool(request.form.get("vt")))
-        if store is None:  # hosted: render once, store nothing
-            row = {"id": None, "filename": filename,
+        if store is None:  # hosted: render once, store nothing on the server
+            row = {"id": None, "filename": filename, "save_to_browser": True,
                    "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
             return render_template("report.html", row=row, r=report.to_dict())
         rid = store.save(filename, report.to_dict())
@@ -245,6 +289,28 @@ def create_app(db_path: str | None = None, testing: bool = False, hosted: bool |
         if name not in _sample_names():
             abort(404)
         return run_and_show(name, (SAMPLES_DIR / name).read_bytes())
+
+    @app.post("/history/view")
+    def view_saved():
+        """Re-render a report the visitor's browser saved in its own history (hosted mode).
+
+        The data comes from the client, so it is validated and normalised, rendered with
+        autoescaping like everything else, and never stored."""
+        check_csrf()
+        try:
+            entry = json.loads(request.form.get("entry", ""))
+        except (TypeError, ValueError):
+            abort(400, description="That saved report could not be read. Remove it from the history.")
+        report_data = _normalise_saved(entry)
+        if report_data is None:
+            abort(400, description="That saved report is incomplete or damaged. Remove it from the history.")
+        row = {"id": None, "filename": str(entry.get("filename") or "(unknown file)"),
+               "created_at": str(entry.get("created_at") or ""), "from_history": True}
+        try:
+            return render_template("report.html", row=row, r=report_data)
+        except Exception:  # a field the template needs is missing or the wrong shape
+            log.warning("could not render a saved history entry", exc_info=True)
+            abort(400, description="That saved report is incomplete or damaged. Remove it from the history.")
 
     @app.get("/report/<int:analysis_id>")
     def report(analysis_id: int):

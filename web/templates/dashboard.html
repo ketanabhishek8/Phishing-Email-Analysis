@@ -40,9 +40,28 @@
 </table>
 </div>
 {% elif not hosted_history %}
-<section class="empty-state">
-  <p><b>The hosted demo keeps no history.</b> Each report is shown once and never stored, so other visitors can never see the emails you upload. Run PhishKit on your own machine to keep a dashboard of past analyses.</p>
-  <p><a class="button" href="{{ url_for('index') }}">Analyse an email</a></p>
+<section class="browser-history" data-browser-history>
+  <p class="muted">Your reports are saved in this browser only, never on the server, so other visitors cannot see them. Clearing your browser's site data removes them.</p>
+  <p class="tally" data-history-tally hidden></p>
+  <div class="table-wrap" data-history-table hidden>
+    <table class="history">
+      <thead>
+        <tr><th scope="col">Subject and sender</th><th scope="col">Verdict</th><th scope="col" class="num">Score</th><th scope="col">Analysed</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+      </thead>
+      <tbody data-history-rows></tbody>
+    </table>
+  </div>
+  <p data-history-actions hidden><button class="button button-quiet" type="button" data-history-clear>Clear history</button></p>
+  <section class="empty-state" data-history-empty hidden>
+    <p><b>No emails analysed yet in this browser.</b> Upload a suspicious email or try one of the samples, and it will be listed here.</p>
+    <p><a class="button" href="{{ url_for('index') }}">Analyse an email</a></p>
+  </section>
+  <p class="empty-state" data-history-unavailable hidden>This browser is blocking site storage (for example in a private window), so history cannot be saved here.</p>
+  <form method="post" action="{{ url_for('view_saved') }}" data-history-view hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="entry" value="">
+  </form>
+  <noscript><p class="empty-state">History is saved in your browser and needs JavaScript. Reports still work without it.</p></noscript>
 </section>
 {% else %}
 <section class="empty-state">
