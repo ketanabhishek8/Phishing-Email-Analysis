@@ -45,29 +45,111 @@
   // Coming back with the Back button restores the page from cache with the loader still up.
   window.addEventListener("pageshow", hideLoader);
 
+  // ---------------------------------------------------------------- Postie
+  // A "live" Postie has every mood rendered; switching mood is a class change. The bubble
+  // and mood follow what the visitor is doing with the upload form.
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var livePostie = document.querySelector("[data-postie-live]");
+  var bubble = document.querySelector("[data-bubble]");
+  var currentMood = "idle";
+
+  function setMood(mood, sayKey) {
+    if (livePostie && mood !== currentMood) {
+      livePostie.classList.remove("postie--" + currentMood);
+      livePostie.classList.add("postie--" + mood);
+      livePostie.classList.remove("is-reacting");
+      void livePostie.getBoundingClientRect();  // restart the squash animation
+      livePostie.classList.add("is-reacting");
+      currentMood = mood;
+    }
+    if (bubble && sayKey) {
+      var text = bubble.getAttribute("data-say-" + sayKey);
+      if (text && bubble.textContent !== text) {
+        bubble.textContent = text;
+        bubble.classList.remove("is-new");
+        void bubble.offsetWidth;
+        bubble.classList.add("is-new");
+      }
+    }
+  }
+
+  // Pupils follow the pointer a little. Only the wrapper group moves, so the CSS glance
+  // and blink animations on the inner groups keep running.
+  if (livePostie && !reduceMotion) {
+    var pending = false;
+    var lastEvent = null;
+    var follow = function () {
+      pending = false;
+      var box = livePostie.getBoundingClientRect();
+      if (!box.width) return;
+      var cx = box.left + box.width * 0.5;
+      var cy = box.top + box.height * 0.48;
+      var dx = lastEvent.clientX - cx;
+      var dy = lastEvent.clientY - cy;
+      var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      var reach = Math.min(1, dist / 300) * 4;  // at most 4 SVG units
+      var transform = "translate(" + (dx / dist * reach).toFixed(2) + "px," + (dy / dist * reach * 0.8).toFixed(2) + "px)";
+      livePostie.querySelectorAll(".postie-gaze").forEach(function (g) { g.style.transform = transform; });
+    };
+    document.addEventListener("pointermove", function (e) {
+      lastEvent = e;
+      if (!pending) {
+        pending = true;
+        window.requestAnimationFrame(follow);
+      }
+    }, { passive: true });
+  }
+
   var zone = document.querySelector("[data-dropzone]");
   if (zone) {
     var input = zone.querySelector("input[type=file]");
     var label = zone.querySelector("[data-filename]");
-    var showName = function () {
-      if (input.files && input.files.length) {
-        label.textContent = input.files[0].name;
+    var sub = zone.querySelector("[data-filename-sub]");
+    var defaultSub = sub ? sub.innerHTML : "";
+    var form = zone.closest("form");
+    var submit = form && form.querySelector("[data-submit]");
+    var hint = form && form.querySelector("[data-submit-hint]");
+
+    var sync = function () {
+      var has = !!(input.files && input.files.length);
+      if (has) {
+        var f = input.files[0];
+        label.textContent = f.name;
+        if (sub) sub.textContent = (f.size < 1024 * 1024 ? Math.max(1, Math.round(f.size / 1024)) + " KB" :
+          (f.size / 1024 / 1024).toFixed(1) + " MB") + " · click to choose a different file";
         zone.classList.add("has-file");
+        setMood("eager", "ready");
+      } else if (sub) {
+        sub.innerHTML = defaultSub;  // our own markup, captured at load
       }
+      if (submit) submit.disabled = !has;
+      if (hint) hint.hidden = has;
     };
-    input.addEventListener("change", showName);
+    input.addEventListener("change", sync);
     ["dragenter", "dragover"].forEach(function (type) {
-      zone.addEventListener(type, function (e) { e.preventDefault(); zone.classList.add("is-over"); });
+      zone.addEventListener(type, function (e) {
+        e.preventDefault();
+        zone.classList.add("is-over");
+        setMood("eager", "over");
+      });
     });
     ["dragleave", "drop"].forEach(function (type) {
-      zone.addEventListener(type, function (e) { e.preventDefault(); zone.classList.remove("is-over"); });
+      zone.addEventListener(type, function (e) {
+        e.preventDefault();
+        if (type === "dragleave" && e.relatedTarget && zone.contains(e.relatedTarget)) return;  // moved onto a child
+        zone.classList.remove("is-over");
+        if (type === "dragleave" && !(input.files && input.files.length)) setMood("idle", "idle");
+      });
     });
     zone.addEventListener("drop", function (e) {
       if (e.dataTransfer && e.dataTransfer.files.length) {
         input.files = e.dataTransfer.files;
-        showName();
+        sync();
       }
     });
+    sync();
+    // Back/forward can restore the page with a file still selected.
+    window.addEventListener("pageshow", sync);
   }
 
   // ---------------------------------------------------------------- browser history

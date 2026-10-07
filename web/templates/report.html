@@ -8,64 +8,129 @@
 {% set mood = {"clean": "happy", "suspicious": "worried", "phishing": "alarmed"}.get(vclass, "idle") %}
 {% set saying = {
   "clean": "Looks legit to me. Still, trust your gut if the request is unexpected.",
-  "suspicious": "Hmm, a few things here don't add up. Read the findings before you act.",
+  "suspicious": "Hmm, a few things here don't add up. Read this before you act.",
   "phishing": "Don't click anything! This one has the marks of a phish.",
 }.get(vclass, "") %}
+{% set steps = {
+  "phishing": [
+    ("Don't click, download or reply.", "Leave the links and attachments alone, even to “check” them."),
+    ("Report it.", "Use your mail app's Report phishing button, or forward it to your IT or security team."),
+    ("Then delete it.", "If you already clicked or typed a password, change that password now and tell IT."),
+  ],
+  "suspicious": [
+    ("Hold off for now.", "No clicks, downloads or payments until you're sure."),
+    ("Check with the sender another way.", "Use a phone number or address you already know, not one from this email."),
+    ("Still unsure? Report it.", "Your IT or security team would rather see a false alarm than miss a real one."),
+  ],
+  "clean": [
+    ("Nothing here looks like phishing.", "Only minor things came up; they are listed alongside." if scored else "The sender checks out and no link or attachment raised a flag."),
+    ("Still sanity-check the request.", "An unexpected payment, password or gift-card request deserves a second look."),
+  ],
+}.get(vclass, []) %}
+{% set top = r.findings|main_reasons %}
 
 <section class="verdict verdict-{{ vclass }}" aria-labelledby="subject">
-  <div class="verdict-mascot">
-    {{ postie(mood, "Postie looks " ~ {"happy": "happy", "worried": "worried", "alarmed": "alarmed"}.get(mood, "curious")) }}
+  <div class="verdict-head">
+    <div class="verdict-mascot">
+      {{ postie(mood, "Postie looks " ~ {"happy": "happy", "worried": "worried", "alarmed": "alarmed"}.get(mood, "curious")) }}
+    </div>
+    <div class="verdict-body">
+      <p class="verdict-word">{{ r.verdict }}</p>
+      <p class="verdict-saying">{{ saying }}</p>
+      <h1 id="subject" class="subject">{{ r.summary.subject or '(no subject)' }}</h1>
+      <dl class="envelope">
+        <div><dt>From</dt><dd>{{ r.summary.from or '(none)' }}</dd></div>
+        <div><dt>To</dt><dd>{{ r.summary.to or '(none)' }}</dd></div>
+        <div><dt>Date</dt><dd>{{ r.summary.date or '(none)' }}</dd></div>
+        <div><dt>File</dt><dd>{{ row.filename }}, analysed {{ row.created_at.replace('T', ' ').replace('+00:00', ' UTC') }}{% if row.from_history %} (opened from this browser's history){% elif row.id is none %} (not stored on the server){% endif %}</dd></div>
+      </dl>
+    </div>
+    <div class="verdict-score">
+      <p class="score-figure"><span class="score-number">{{ r.score }}</span><span class="score-of">/100</span></p>
+      <p class="score-label">risk score</p>
+    </div>
   </div>
-  <div class="verdict-body">
-    <p class="verdict-word">{{ r.verdict }}</p>
-    <p class="verdict-saying">{{ saying }}</p>
-    <h1 id="subject" class="subject">{{ r.summary.subject or '(no subject)' }}</h1>
-    <dl class="envelope">
-      <div><dt>From</dt><dd>{{ r.summary.from or '(none)' }}</dd></div>
-      <div><dt>To</dt><dd>{{ r.summary.to or '(none)' }}</dd></div>
-      <div><dt>Date</dt><dd>{{ r.summary.date or '(none)' }}</dd></div>
-      <div><dt>File</dt><dd>{{ row.filename }}, analysed {{ row.created_at.replace('T', ' ').replace('+00:00', ' UTC') }}{% if row.from_history %} (opened from this browser's history){% elif row.id is none %} (not stored on the server){% endif %}</dd></div>
-    </dl>
-  </div>
-  <div class="verdict-score" aria-label="Risk score {{ r.score }} out of 100">
-    <span class="score-number">{{ r.score }}</span><span class="score-of">/100</span>
-    <span class="score-label">risk score</span>
-  </div>
-</section>
 
-<section class="risk" aria-label="How the score adds up">
-  <svg class="risk-strip" viewBox="0 0 1000 36" preserveAspectRatio="none" role="img"
-       aria-label="Risk score {{ r.score }} out of 100 from {{ scored|length }} weighted findings">
-    <rect class="risk-track" x="0" y="0" width="1000" height="36" rx="18"/>
-    {% set ns = namespace(x=0) %}
-    {% for f in scored %}
-      {% set w = [f.weight * 10, 1000 - ns.x]|min %}
-      {% if w > 0 %}
-      <rect class="seg seg-{{ f.severity }}" x="{{ ns.x }}" y="0" width="{{ [w - 4, 2]|max }}" height="36" rx="6"><title>{{ f.title }} (+{{ f.weight }})</title></rect>
-      {% set ns.x = ns.x + w %}
+  <div class="meter">
+    <svg class="meter-bar" viewBox="0 0 1000 24" preserveAspectRatio="none" role="img"
+         aria-label="Risk score {{ r.score }} out of 100, in the {{ r.verdict }} range">
+      <rect class="zone zone-clean{% if vclass == 'clean' %} is-current{% endif %}" x="0" y="6" width="196" height="12" rx="6"/>
+      <rect class="zone zone-suspicious{% if vclass == 'suspicious' %} is-current{% endif %}" x="200" y="6" width="296" height="12" rx="6"/>
+      <rect class="zone zone-phishing{% if vclass == 'phishing' %} is-current{% endif %}" x="500" y="6" width="500" height="12" rx="6"/>
+      <rect class="meter-marker" x="{{ [[r.score * 10 - 5, 0]|max, 990]|min }}" y="0" width="10" height="24" rx="5"/>
+    </svg>
+    <div class="meter-scale" aria-hidden="true"><span>Clean</span><span>Suspicious</span><span>Likely phishing</span></div>
+  </div>
+
+  <div class="verdict-next">
+    <section class="todo" aria-labelledby="todo-h">
+      <h2 id="todo-h">What to do now</h2>
+      <ol class="steps">
+        {% for head, more in steps %}
+        <li><b>{{ head }}</b> {{ more }}</li>
+        {% endfor %}
+      </ol>
+    </section>
+    <section class="reasons" aria-labelledby="reasons-h">
+      <h2 id="reasons-h">{% if not top %}What Postie checked{% elif vclass == 'clean' %}Worth knowing{% else %}Main reasons{% endif %}</h2>
+      {% if top %}
+      <ul class="reason-list">
+        {% for f in top %}
+        <li><span class="sev-dot sev-{{ f.severity }}" aria-hidden="true"></span><span class="reason"><span class="reason-title">{{ f.title }}</span><span class="reason-detail">{{ f.detail }}</span></span></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <ul class="checked-list">
+        <li>Sender's postmarks: SPF, DKIM and DMARC</li>
+        <li>Who it claims to be from, and where replies go</li>
+        <li>{{ r.urls|length }} link{{ '' if r.urls|length == 1 else 's' }}</li>
+        <li>{{ r.attachments|length }} attachment{{ '' if r.attachments|length == 1 else 's' }}</li>
+      </ul>
       {% endif %}
-    {% endfor %}
-  </svg>
-  <div class="risk-scale" aria-hidden="true"><span>Clean</span><span>Suspicious</span><span>Likely phishing</span></div>
-  <p class="risk-note">
-    {% if scored %}Each block is one finding, sized by its weight: low 5, medium 15, high 30, critical 50.{% if total > 100 %} Findings total {{ total }}; the score is capped at 100.{% endif %}
-    {% else %}No finding added to the score.{% endif %}
-  </p>
+    </section>
+  </div>
 </section>
 
 <section class="section" aria-labelledby="findings-h">
-  <h2 id="findings-h">What Postie found <span class="count">{{ r.findings|length }}</span></h2>
+  <div class="section-head section-head--row">
+    <h2 id="findings-h">Everything Postie found <span class="count">{{ r.findings|length }}</span></h2>
+    {% if scored %}
+    <details class="breakdown">
+      <summary>How the score adds up</summary>
+      <div class="breakdown-body">
+        <svg class="risk-strip" viewBox="0 0 1000 28" preserveAspectRatio="none" role="img"
+             aria-label="Risk score {{ r.score }} out of 100 from {{ scored|length }} weighted findings">
+          <rect class="risk-track" x="0" y="0" width="1000" height="28" rx="14"/>
+          {% set ns = namespace(x=0) %}
+          {% for f in scored %}
+            {% set w = [f.weight * 10, 1000 - ns.x]|min %}
+            {% if w > 0 %}
+            <rect class="seg seg-{{ f.severity }}" x="{{ ns.x }}" y="0" width="{{ [w - 4, 2]|max }}" height="28" rx="6"><title>{{ f.title }} (+{{ f.weight }})</title></rect>
+            {% set ns.x = ns.x + w %}
+            {% endif %}
+          {% endfor %}
+        </svg>
+        <p class="risk-note">Each block is one finding, sized by its weight: low 5, medium 15, high 30, critical 50.{% if total > 100 %} These findings add up to {{ total }}, so the score is capped at 100.{% endif %} Under 20 is Clean, 20 to 49 Suspicious, 50 and over Likely phishing.</p>
+      </div>
+    </details>
+    {% endif %}
+  </div>
   {% if r.findings %}
   <ol class="labels">
     {% for f in r.findings %}
     <li class="label label-{{ f.severity }}">
       <div class="label-top">
-        <span class="sev sev-{{ f.severity }}">{{ f.severity|capitalize }}{% if f.weight %} +{{ f.weight }}{% endif %}</span>
+        <span class="sev sev-{{ f.severity }}">{{ f.severity|capitalize }}{% if f.weight %} · +{{ f.weight }}{% endif %}</span>
         <span class="label-cat">{{ f.category }}</span>
       </div>
       <h3 class="label-title">{{ f.title }}</h3>
       <p class="label-detail">{{ f.detail }}</p>
-      {% if f.evidence %}<p class="evidence">{{ f.evidence|defang_text }}</p>{% endif %}
+      {% if f.evidence %}
+      <details class="evidence-fold">
+        <summary>Evidence</summary>
+        <p class="evidence">{{ f.evidence|defang_text }}</p>
+      </details>
+      {% endif %}
     </li>
     {% endfor %}
   </ol>
@@ -125,11 +190,14 @@
       <h2 id="auth-h">Postmarks</h2>
       <p class="muted">SPF, DKIM and DMARC {% if r.auth.authserv_id %}as recorded by <code>{{ r.auth.authserv_id }}</code> on delivery.{% else %}as recorded by the receiving server.{% endif %}</p>
       <dl class="postmarks">
+        {% set asks = {"spf": "Was the sending server allowed to send for this domain?",
+                       "dkim": "Was the message signed, and left unchanged since?",
+                       "dmarc": "Do the sender domains line up with the From address?"} %}
         {% for m in ('spf', 'dkim', 'dmarc') %}
         {% set e = r.auth.recorded[m] %}
         <div class="postmark result-{{ e.result.replace(' ', '-') }}">
           <dt>{{ m|upper }}</dt>
-          <dd><span class="result">{{ e.result }}</span><span class="auth-detail">{{ e.detail }}</span></dd>
+          <dd><span class="postmark-q">{{ asks[m] }}</span><span class="result">{{ e.result }}</span><span class="auth-detail">{{ e.detail }}</span></dd>
         </div>
         {% endfor %}
       </dl>
@@ -195,7 +263,7 @@
   {% endif %}
 </section>
 
-<p class="again"><a class="button" href="{{ url_for('index') }}">Inspect another email</a></p>
+<p class="again"><a class="button" href="{{ url_for('index') }}"><span>Inspect another email</span><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg></span></a></p>
 {% if row.save_to_browser %}
 {# Read by app.js and saved to this browser's localStorage. tojson escapes <, > and & so the
    email's content cannot close this block; type="application/json" is data, never executed. #}

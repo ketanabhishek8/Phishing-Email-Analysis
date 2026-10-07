@@ -1,10 +1,12 @@
 import io
 import json
+import os
 import re
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tests.helpers import make_eml
 from web.app import create_app
@@ -150,6 +152,83 @@ class WebTests(unittest.TestCase):
 
     def test_unknown_report_404(self):
         self.assertEqual(self.client.get("/report/12345").status_code, 404)
+
+
+class ReportLayoutTests(unittest.TestCase):
+    """The report leads with the verdict, what to do next and the main reasons."""
+
+    MOODS = ("idle", "eager", "inspecting", "happy", "worried", "alarmed", "shrug")
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.client = create_app(db_path=str(Path(self.dir) / "t.db"), testing=True).test_client()
+
+    def tearDown(self):
+        shutil.rmtree(self.dir)
+
+    def report_for(self, sample):
+        token = re.search(r'name="csrf_token" value="([^"]+)"', self.client.get("/").get_data(as_text=True)).group(1)
+        resp = self.client.post(f"/samples/{sample}", data={"csrf_token": token})
+        return self.client.get(resp.headers["Location"]).get_data(as_text=True)
+
+    @staticmethod
+    def reasons(page):
+        block = re.search(r'<ul class="reason-list">(.*?)</ul>', page, re.S)
+        return re.findall(r'<span class="reason-title">([^<]+)</span>', block.group(1)) if block else []
+
+    def test_phishing_report_says_what_to_do_and_why(self):
+        page = self.report_for("02-paypal-spoof-punycode.eml")
+        self.assertIn("What to do now", page)
+        self.assertIn("Report it.", page)
+        self.assertIn("Main reasons", page)
+        reasons = self.reasons(page)
+        self.assertEqual(len(reasons), 3)
+        self.assertIn("SPF failed", reasons)
+        self.assertIn("Link text shows a different domain", reasons)  # ties spread across categories
+        self.assertIn('class="postie postie--alarmed"', page)
+
+    def test_main_reasons_are_the_heaviest_findings(self):
+        data = self.client.post("/api/analyze", content_type="multipart/form-data", data={
+            "file": (io.BytesIO((SAMPLES / "03-invoice-macro-attachment.eml").read_bytes()), "m.eml")}).get_json()
+        weights = {f["title"]: f["weight"] for f in data["findings"]}
+        page = self.report_for("03-invoice-macro-attachment.eml")
+        shown = self.reasons(page)
+        self.assertTrue(shown)
+        lightest_shown = min(weights[t] for t in shown)
+        hidden = [w for t, w in weights.items() if t not in shown]
+        self.assertTrue(all(w <= lightest_shown for w in hidden), (shown, weights))
+
+    def test_clean_report_reassures_without_alarm(self):
+        page = self.report_for("06-legit-newsletter.eml")
+        self.assertIn("Nothing here looks like phishing.", page)
+        self.assertNotIn("Report it.", page)
+        self.assertIn('class="postie postie--happy"', page)
+        self.assertIn("What Postie checked", page)
+
+    def test_report_renders_only_its_own_mood(self):
+        page = self.report_for("02-paypal-spoof-punycode.eml")
+        verdict = page[page.index('<section class="verdict'):page.index('<div class="meter">')]
+        self.assertIn("m-alarmed", verdict)
+        for mood in self.MOODS:
+            if mood != "alarmed":
+                self.assertNotIn(f"m-{mood}", verdict)
+
+    def test_upload_page_postie_can_switch_every_mood(self):
+        page = self.client.get("/").get_data(as_text=True)
+        self.assertIn("data-postie-live", page)
+        for mood in self.MOODS:
+            self.assertIn(f"m-{mood}", page)
+
+    def test_upload_page_hides_server_configuration_details(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("VT_API_KEY", None)
+            page = self.client.get("/").get_data(as_text=True)
+        self.assertNotIn("VT_API_KEY", page)
+        self.assertIn("Not set up on this server.", page)
+
+    def test_error_page_has_a_shrugging_postie(self):
+        page = self.client.get("/report/12345").get_data(as_text=True)
+        self.assertIn('class="postie postie--shrug"', page)
 
 
 if __name__ == "__main__":

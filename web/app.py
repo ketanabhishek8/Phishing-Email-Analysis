@@ -243,6 +243,23 @@ def create_app(db_path: str | None = None, testing: bool = False, hosted: bool |
     def verdict_class(verdict: str) -> str:
         return {"Clean": "clean", "Suspicious": "suspicious", "Likely phishing": "phishing"}.get(verdict, "")
 
+    @app.template_filter("main_reasons")
+    def main_reasons(findings, limit: int = 3) -> list:
+        """The heaviest scored findings. Among equally heavy ones, prefer categories not shown
+        yet, so three reasons explain more than one kind of problem."""
+        def field(f, name):
+            return f.get(name) if isinstance(f, dict) else getattr(f, name, None)
+        pool = [f for f in findings if field(f, "weight")]
+        chosen, seen = [], set()
+        while pool and len(chosen) < limit:
+            heaviest = max(field(f, "weight") for f in pool)
+            tied = [f for f in pool if field(f, "weight") == heaviest]
+            pick = next((f for f in tied if field(f, "category") not in seen), tied[0])
+            chosen.append(pick)
+            seen.add(field(pick, "category"))
+            pool.remove(pick)
+        return chosen
+
     url_pattern = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>\"']+")
 
     @app.template_filter("defang_text")

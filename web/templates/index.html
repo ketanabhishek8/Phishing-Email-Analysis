@@ -1,58 +1,82 @@
 {% extends "base.html" %}
 {% from "_postie.html" import postie %}
 {% block content %}
-<section class="hero">
-  <div class="hero-copy">
-    <h1 class="hero-title">Got a fishy email?</h1>
-    <p class="lede">Hand it to Postie. PhishKit opens the envelope, checks who really sent it, follows every link and weighs every attachment, then tells you in plain words what looks wrong.</p>
+<section class="desk" aria-labelledby="desk-h">
+  <div class="desk-copy">
+    <h1 id="desk-h" class="desk-title">Not sure about an email?</h1>
+    <p class="lede">Give it to Postie. PhishKit checks who really sent it, where its links go and what its attachments are, then explains what it found in plain words.</p>
+
+    <form class="upload" action="{{ url_for('analyze_upload') }}" method="post" enctype="multipart/form-data" data-loading data-upload>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="dropzone" for="file" data-dropzone>
+        <svg class="dropzone-icon" viewBox="0 0 48 40" aria-hidden="true">
+          <rect x="3" y="5" width="42" height="30" rx="6"/>
+          <path d="M6 9 L24 22 L42 9"/>
+        </svg>
+        <span class="dropzone-text" data-filename>Drop the email file here</span>
+        <span class="dropzone-sub" data-filename-sub>or <span class="dropzone-pick">choose a file</span> · .eml, up to {{ max_upload_mb }} MB</span>
+        <input id="file" name="file" type="file" accept=".eml,message/rfc822" required>
+      </label>
+
+      <details class="howto">
+        <summary>How do I save an email as a file?</summary>
+        <ul>
+          <li><b>Gmail:</b> open the email, then the ⋮ menu › Download message.</li>
+          <li><b>Outlook desktop:</b> open the email, then File › Save As.</li>
+          <li><b>Apple Mail:</b> drag the email from the list onto your desktop.</li>
+        </ul>
+      </details>
+
+      <fieldset class="options">
+        <legend class="visually-hidden">Extra checks</legend>
+        <label class="option">
+          <input type="checkbox" name="live" value="1">
+          <span class="switch" aria-hidden="true"></span>
+          <span class="option-body"><b>Re-check the sender's records live</b><small>Looks up SPF, DKIM and DMARC again right now. Adds a few seconds.</small></span>
+        </label>
+        <label class="option {% if not vt_configured %}is-disabled{% endif %}">
+          <input type="checkbox" name="vt" value="1" {% if not vt_configured %}disabled{% endif %}>
+          <span class="switch" aria-hidden="true"></span>
+          <span class="option-body"><b>Look up links and files on VirusTotal</b><small>{% if vt_configured %}Sends only link addresses and file fingerprints, never the email.{% else %}Not set up on this server.{% endif %}</small></span>
+        </label>
+      </fieldset>
+
+      <div class="submit-row">
+        <button class="button" type="submit" data-submit>
+          <span>Inspect email</span>
+          <span class="button-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg></span>
+        </button>
+        <span class="submit-hint" data-submit-hint hidden>Choose a file first</span>
+      </div>
+    </form>
   </div>
-  <div class="hero-mascot">
-    <p class="bubble">Hand me that email, I'll sniff it out!</p>
-    {{ postie("idle") }}
+
+  <div class="desk-mascot">
+    <p class="bubble" data-bubble aria-live="polite"
+       data-say-idle="Got an email you're unsure about? Hand it over."
+       data-say-over="Ooh, drop it right here!"
+       data-say-ready="Got it! Press Inspect email when you're ready.">Got an email you're unsure about? Hand it over.</p>
+    {{ postie("idle", "Postie, the PhishKit mascot, waiting for an email", live=true) }}
   </div>
 </section>
 
-<form class="upload" action="{{ url_for('analyze_upload') }}" method="post" enctype="multipart/form-data" data-loading>
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <label class="dropzone" for="file" data-dropzone>
-    <span class="slot" aria-hidden="true"></span>
-    <svg class="dropzone-icon" viewBox="0 0 64 48" aria-hidden="true">
-      <rect x="3" y="3" width="58" height="42" rx="7"/>
-      <path d="M6 8 L32 27 L58 8"/>
-    </svg>
-    <span class="dropzone-text" data-filename>Drop an .eml file in the slot, or choose one</span>
-    <span class="dropzone-hint">Up to {{ max_upload_mb }} MB. In Outlook use File › Save As; in Gmail use ⋮ › Download message.</span>
-    <input id="file" name="file" type="file" accept=".eml,message/rfc822" required>
-  </label>
-
-  <fieldset class="options">
-    <legend>Extra checks</legend>
-    <label class="chip">
-      <input type="checkbox" name="live" value="1">
-      <span class="chip-body"><b>Live DNS re-check</b><small>Re-verifies SPF, DKIM and DMARC against the sender's published records.</small></span>
-    </label>
-    <label class="chip {% if not vt_configured %}is-disabled{% endif %}">
-      <input type="checkbox" name="vt" value="1" {% if not vt_configured %}disabled{% endif %}>
-      <span class="chip-body"><b>VirusTotal lookup</b><small>{% if vt_configured %}Sends only hashes and URLs, never the email.{% else %}Set <code>VT_API_KEY</code> and restart to enable.{% endif %}</small></span>
-    </label>
-  </fieldset>
-
-  <button class="button button-big" type="submit">Inspect email</button>
-</form>
-
 {% if samples %}
 <section class="samples" aria-labelledby="samples-h">
-  <h2 id="samples-h">Or open a sample parcel</h2>
-  <p class="muted">Harmless re-creations of real tricks. Attacker domains and IP addresses use reserved test ranges.</p>
-  <ul class="sample-grid">
+  <div class="section-head">
+    <h2 id="samples-h">No email handy? Try a sample</h2>
+    <p class="muted">Harmless re-creations of real tricks. They use reserved test domains and addresses.</p>
+  </div>
+  <ul class="sample-list">
     {% for name, title in samples %}
     <li>
       <form action="{{ url_for('analyze_sample', name=name) }}" method="post" data-loading>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="sample" type="submit">
-          <span class="stamp" aria-hidden="true"></span>
-          <span class="sample-title">{{ title }}</span>
-          <code class="sample-file">{{ name }}</code>
+          <span class="sample-text">
+            <span class="sample-title">{{ title }}</span>
+            <code class="sample-file">{{ name }}</code>
+          </span>
+          <svg class="sample-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
         </button>
       </form>
     </li>
@@ -63,10 +87,12 @@
 
 {% if recent %}
 <section class="recent" aria-labelledby="recent-h">
-  <h2 id="recent-h">Recently inspected</h2>
+  <div class="section-head">
+    <h2 id="recent-h">Recently inspected</h2>
+  </div>
   <ul class="recent-list">
     {% for row in recent %}
-    <li><a href="{{ url_for('report', analysis_id=row.id) }}"><span class="dot {{ row.verdict|verdict_class }}" aria-hidden="true"></span>{{ row.subject or '(no subject)' }}</a> <span class="muted">{{ row.verdict }}, {{ row.score }}/100</span></li>
+    <li><a href="{{ url_for('report', analysis_id=row.id) }}"><span class="dot {{ row.verdict|verdict_class }}" aria-hidden="true"></span>{{ row.subject or '(no subject)' }}</a> <span class="muted small">{{ row.verdict }}, {{ row.score }}/100</span></li>
     {% endfor %}
   </ul>
   <p><a href="{{ url_for('dashboard') }}">See all of your history</a></p>

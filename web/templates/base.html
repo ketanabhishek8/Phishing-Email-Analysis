@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}PhishKit{% endblock %}</title>
-  <link rel="preload" href="{{ url_for('static', filename='fonts/fredoka-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
@@ -45,6 +44,7 @@
       {{ postie("inspecting", "Postie is inspecting your email") }}
       <p class="loader-title">Inspecting your email</p>
       <p class="loader-step" data-loader-step>Opening the envelope…</p>
+      <span class="loader-track" aria-hidden="true"><span class="loader-fill"></span></span>
     </div>
   </div>
 </body>

@@ -78,19 +78,24 @@ mailbox, and authentication only proves which domain sent the message, not that 
 python -m web            # http://127.0.0.1:5000
 ```
 
-Upload an `.eml` file, or click one of the bundled samples. Tick the boxes to add live DNS or
-VirusTotal checks. Every analysis is kept in a local SQLite database and listed on the dashboard.
+Upload an `.eml` file, or click one of the bundled samples. Switch on live DNS or VirusTotal
+checks if you want them. Every analysis is kept in a local SQLite database and listed on the
+dashboard.
 
 | Upload | Dashboard |
 |---|---|
 | ![Upload page](docs/screenshots/upload.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
-The interface is a playful "mail room": **Postie**, an original envelope mascot drawn in SVG
-and animated with CSS, walks on the spot with a parcel and a magnifying glass while an email
-is analysed, and reacts to the verdict (happy, worried or alarmed). Animations respect the
-system's reduce-motion setting. Headings use [Fredoka](https://github.com/hafontia/Fredoka-One),
-bundled under the SIL Open Font License (`public/static/fonts/OFL.txt`), so the page still makes
-no external requests.
+Each report leads with the answer: the verdict, a risk meter, **what to do now** (steps that
+depend on the verdict) and the **main reasons**, before the full list of findings and the
+technical detail. SPF, DKIM and DMARC are each paired with the plain question they answer.
+
+**Postie**, an original envelope mascot drawn in SVG and animated with CSS, keeps it friendly.
+Its expressions come from eyelids, brows, pupils and mouth working together: it watches your
+pointer on the upload page, perks up when you drag a file over, walks on the spot with a parcel
+and a magnifying glass while an email is analysed, then looks happy, worried or alarmed to match
+the verdict, and shrugs on error pages. Animations respect the system's reduce-motion setting.
+The page uses the system font and makes no external requests.
 
 There is also a JSON API:
 
@@ -172,7 +177,7 @@ phishkit/
   analyzer.py      runs every module and builds the Report
   render.py, cli.py
 web/               Flask app (local and hosted modes), SQLite store, templates
-public/static/     CSS, JS, icon and the Fredoka font (served by the CDN when hosted; no external assets)
+public/static/     CSS, JS and icon (served by the CDN when hosted; no external assets)
 app.py             WSGI entry point for hosting (Vercel, gunicorn)
 ```
 
