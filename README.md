@@ -85,6 +85,13 @@ VirusTotal checks. Every analysis is kept in a local SQLite database and listed 
 |---|---|
 | ![Upload page](docs/screenshots/upload.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
+The interface is a playful "mail room": **Postie**, an original envelope mascot drawn in SVG
+and animated with CSS, walks on the spot with a parcel and a magnifying glass while an email
+is analysed, and reacts to the verdict (happy, worried or alarmed). Animations respect the
+system's reduce-motion setting. Headings use [Fredoka](https://github.com/hafontia/Fredoka-One),
+bundled under the SIL Open Font License (`public/static/fonts/OFL.txt`), so the page still makes
+no external requests.
+
 There is also a JSON API:
 
 ```bash
@@ -165,7 +172,7 @@ phishkit/
   analyzer.py      runs every module and builds the Report
   render.py, cli.py
 web/               Flask app (local and hosted modes), SQLite store, templates
-public/static/     CSS, JS and icon (served by the CDN when hosted; no external assets)
+public/static/     CSS, JS, icon and the Fredoka font (served by the CDN when hosted; no external assets)
 app.py             WSGI entry point for hosting (Vercel, gunicorn)
 ```
 

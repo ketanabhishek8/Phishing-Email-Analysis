@@ -1,8 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Dashboard – PhishKit{% endblock %}
+{% from "_postie.html" import postie %}
+{% block title %}History – PhishKit{% endblock %}
 {% block content %}
 <section class="intro">
-  <h1>Analysed emails</h1>
+  <h1>Your mailbag</h1>
   {% if stats.total %}
   <p class="tally" data-count-clean="{{ stats['Clean'] }}" data-count-suspicious="{{ stats['Suspicious'] }}" data-count-phishing="{{ stats['Likely phishing'] }}">
     {{ stats.total }} email{{ '' if stats.total == 1 else 's' }} analysed:
@@ -53,8 +54,9 @@
   </div>
   <p data-history-actions hidden><button class="button button-quiet" type="button" data-history-clear>Clear history</button></p>
   <section class="empty-state" data-history-empty hidden>
+    {{ postie("shrug", "Postie has nothing to show yet") }}
     <p><b>No emails analysed yet in this browser.</b> Upload a suspicious email or try one of the samples, and it will be listed here.</p>
-    <p><a class="button" href="{{ url_for('index') }}">Analyse an email</a></p>
+    <p><a class="button" href="{{ url_for('index') }}">Inspect an email</a></p>
   </section>
   <p class="empty-state" data-history-unavailable hidden>This browser is blocking site storage (for example in a private window), so history cannot be saved here.</p>
   <form method="post" action="{{ url_for('view_saved') }}" data-history-view hidden>
@@ -65,8 +67,9 @@
 </section>
 {% else %}
 <section class="empty-state">
+  {{ postie("shrug", "Postie has nothing to show yet") }}
   <p><b>No emails analysed yet.</b> Upload a suspicious email or try one of the samples, and it will be listed here.</p>
-  <p><a class="button" href="{{ url_for('index') }}">Analyse an email</a></p>
+  <p><a class="button" href="{{ url_for('index') }}">Inspect an email</a></p>
 </section>
 {% endif %}
 {% endblock %}

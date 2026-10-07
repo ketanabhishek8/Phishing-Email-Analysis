@@ -1,0 +1,96 @@
+{#- Postie, the PhishKit mascot: an envelope who inspects your mail.
+    Pure inline SVG; every colour and animation comes from classes in style.css (the CSP
+    forbids inline styles). Moods: idle, inspecting, happy, worried, alarmed, shrug. -#}
+{% macro postie(mood="idle", label="") -%}
+<svg class="postie postie--{{ mood }}" viewBox="0 0 240 240" role="img"
+     aria-label="{{ label or 'Postie, the PhishKit envelope mascot' }}" focusable="false">
+  <ellipse class="postie-shadow" cx="120" cy="226" rx="66" ry="7"/>
+
+  {% if mood == "inspecting" %}
+  <g class="postie-ground" aria-hidden="true">
+    <line x1="18" y1="232" x2="44" y2="232"/><line x1="70" y1="232" x2="96" y2="232"/>
+    <line x1="150" y1="232" x2="176" y2="232"/><line x1="202" y1="232" x2="228" y2="232"/>
+  </g>
+  {% endif %}
+
+  <g class="postie-legs">
+    <g class="postie-leg postie-leg--l">
+      <path class="postie-limb" d="M98 160 Q 96 188 88 210"/>
+      <ellipse class="postie-foot" cx="80" cy="213" rx="15" ry="7"/>
+    </g>
+    <g class="postie-leg postie-leg--r">
+      <path class="postie-limb" d="M142 160 Q 146 188 154 210"/>
+      <ellipse class="postie-foot" cx="162" cy="213" rx="15" ry="7"/>
+    </g>
+  </g>
+
+  <g class="postie-body">
+    {% if mood == "alarmed" %}
+    <g class="postie-alarm" aria-hidden="true">
+      <path d="M58 18 L66 40"/><path d="M120 6 L120 30"/><path d="M182 18 L174 40"/>
+    </g>
+    {% endif %}
+
+    {# arms behind the envelope #}
+    {% if mood == "shrug" %}
+    <path class="postie-limb" d="M50 116 Q 26 108 22 82"/>
+    <path class="postie-limb" d="M190 116 Q 214 108 218 82"/>
+    {% elif mood == "happy" %}
+    <path class="postie-limb postie-wave" d="M190 114 Q 216 100 214 70"/>
+    <path class="postie-limb" d="M50 118 Q 30 128 44 146"/>
+    {% elif mood == "inspecting" %}
+    <path class="postie-limb" d="M50 112 Q 30 96 34 74"/>
+    {% else %}
+    <path class="postie-limb" d="M50 118 Q 28 128 42 148"/>
+    <path class="postie-limb" d="M190 118 Q 212 128 198 148"/>
+    {% endif %}
+
+    <g class="postie-envelope">
+      <rect class="postie-env" x="44" y="46" width="152" height="118" rx="12"/>
+      <path class="postie-flap" d="M50 54 L120 86 L190 54"/>
+      <path class="postie-fold" d="M50 158 L74 138 M190 158 L166 138"/>
+    </g>
+
+    <g class="postie-face">
+      <g class="postie-eyes">
+        <ellipse class="postie-eye" cx="100" cy="114" rx="{{ 19 if mood == 'alarmed' else 16 }}" ry="{{ 20 if mood == 'alarmed' else 17 }}"/>
+        <ellipse class="postie-eye" cx="140" cy="112" rx="{{ 21 if mood == 'alarmed' else 18 }}" ry="{{ 22 if mood == 'alarmed' else 19 }}"/>
+        <g class="postie-pupils">
+          <circle class="postie-pupil" cx="{{ 101 if mood == 'alarmed' else 104 }}" cy="{{ 114 if mood == 'alarmed' else 117 }}" r="{{ 5 if mood == 'alarmed' else 8 }}"/>
+          <circle class="postie-pupil" cx="{{ 141 if mood == 'alarmed' else 144 }}" cy="{{ 112 if mood == 'alarmed' else 115 }}" r="{{ 6 if mood == 'alarmed' else 9 }}"/>
+          <circle class="postie-glint" cx="{{ 99 if mood == 'alarmed' else 101 }}" cy="{{ 111 if mood == 'alarmed' else 113 }}" r="2.4"/>
+          <circle class="postie-glint" cx="{{ 139 if mood == 'alarmed' else 141 }}" cy="{{ 109 if mood == 'alarmed' else 111 }}" r="2.8"/>
+        </g>
+        {% if mood == "worried" %}
+        <path class="postie-brow" d="M84 92 L112 98"/><path class="postie-brow" d="M156 90 L128 96"/>
+        {% endif %}
+      </g>
+      {% if mood == "happy" %}
+      <path class="postie-mouth-line" d="M108 140 Q 120 154 132 140"/>
+      {% elif mood == "worried" %}
+      <path class="postie-mouth-line" d="M106 146 Q 112 139 118 146 Q 124 153 132 146"/>
+      {% elif mood == "alarmed" %}
+      <ellipse class="postie-mouth" cx="120" cy="148" rx="9" ry="11"/>
+      {% elif mood == "shrug" %}
+      <path class="postie-mouth-line" d="M110 145 L130 143"/>
+      {% else %}
+      <ellipse class="postie-mouth" cx="120" cy="144" rx="5" ry="6"/>
+      {% endif %}
+    </g>
+
+    {% if mood == "inspecting" %}
+    <g class="postie-magnifier">
+      <line class="postie-handle" x1="26" y1="86" x2="36" y2="70"/>
+      <circle class="postie-lens" cx="44" cy="56" r="17"/>
+      <circle class="postie-lens-glint" cx="38" cy="50" r="5"/>
+    </g>
+    <g class="postie-parcel">
+      <rect class="postie-box" x="132" y="144" width="78" height="54" rx="4"/>
+      <path class="postie-box-lid" d="M132 144 L144 130 L222 130 L210 144 Z"/>
+      <rect class="postie-box-tape" x="164" y="144" width="12" height="54"/>
+      <path class="postie-limb" d="M190 126 Q 216 142 210 166"/>
+    </g>
+    {% endif %}
+  </g>
+</svg>
+{%- endmacro %}

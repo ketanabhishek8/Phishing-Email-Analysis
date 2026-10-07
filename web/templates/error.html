@@ -1,9 +1,13 @@
 {% extends "base.html" %}
+{% from "_postie.html" import postie %}
 {% block title %}Error {{ code }} – PhishKit{% endblock %}
 {% block content %}
-<section class="intro error">
-  <h1>{% if code == 404 %}Page not found{% elif code == 413 %}File too large{% elif code == 500 %}Something went wrong{% else %}That didn't work{% endif %}</h1>
-  <p class="lede">{{ message }}</p>
-  <p><a class="button" href="{{ url_for('index') }}">Back to upload</a></p>
+<section class="error-page">
+  {{ postie("shrug", "Postie shrugs") }}
+  <div>
+    <h1>{% if code == 404 %}Postie can't find that{% elif code == 413 %}That parcel is too heavy{% elif code == 500 %}Something went wrong{% else %}That didn't work{% endif %}</h1>
+    <p class="lede">{{ message }}</p>
+    <p><a class="button" href="{{ url_for('index') }}">Back to the inspection desk</a></p>
+  </div>
 </section>
 {% endblock %}

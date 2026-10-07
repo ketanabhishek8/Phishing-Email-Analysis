@@ -2,6 +2,49 @@
 (function () {
   "use strict";
 
+  // ---------------------------------------------------------------- loader
+  // Postie walks with a parcel while the server analyses the email (live DNS can take a
+  // few seconds). Steps describe what PhishKit actually checks, in order.
+  var LOADER_STEPS = [
+    "Opening the envelope…",
+    "Reading the headers…",
+    "Checking SPF, DKIM and DMARC…",
+    "Comparing who it claims to be from…",
+    "Sniffing every link…",
+    "Weighing the attachments…",
+    "Adding up the score…"
+  ];
+  var loader = document.querySelector("[data-loader]");
+  var loaderTimer = null;
+
+  function showLoader() {
+    if (!loader) return;
+    var step = loader.querySelector("[data-loader-step]");
+    var i = 0;
+    step.textContent = LOADER_STEPS[0];
+    loader.hidden = false;
+    clearInterval(loaderTimer);
+    loaderTimer = setInterval(function () {
+      i = Math.min(i + 1, LOADER_STEPS.length - 1);
+      step.textContent = LOADER_STEPS[i];
+    }, 900);
+  }
+
+  function hideLoader() {
+    if (!loader) return;
+    loader.hidden = true;
+    clearInterval(loaderTimer);
+  }
+
+  document.querySelectorAll("form[data-loading]").forEach(function (form) {
+    form.addEventListener("submit", function () {
+      // The browser has already validated required fields when submit fires.
+      showLoader();
+    });
+  });
+  // Coming back with the Back button restores the page from cache with the loader still up.
+  window.addEventListener("pageshow", hideLoader);
+
   var zone = document.querySelector("[data-dropzone]");
   if (zone) {
     var input = zone.querySelector("input[type=file]");
@@ -137,6 +180,7 @@
         open.type = "button";
         open.addEventListener("click", function () {
           viewForm.elements.entry.value = JSON.stringify(entry);
+          showLoader();
           viewForm.submit();
         });
         cell.appendChild(open);

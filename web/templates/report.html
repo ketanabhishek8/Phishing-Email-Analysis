@@ -1,61 +1,82 @@
 {% extends "base.html" %}
+{% from "_postie.html" import postie %}
 {% block title %}{{ r.verdict }}: {{ r.summary.subject or '(no subject)' }} – PhishKit{% endblock %}
 {% block content %}
 {% set vclass = r.verdict|verdict_class %}
 {% set scored = r.findings|selectattr('weight')|list %}
 {% set total = scored|sum(attribute='weight') %}
+{% set mood = {"clean": "happy", "suspicious": "worried", "phishing": "alarmed"}.get(vclass, "idle") %}
+{% set saying = {
+  "clean": "Looks legit to me. Still, trust your gut if the request is unexpected.",
+  "suspicious": "Hmm, a few things here don't add up. Read the findings before you act.",
+  "phishing": "Don't click anything! This one has the marks of a phish.",
+}.get(vclass, "") %}
 
 <section class="verdict verdict-{{ vclass }}" aria-labelledby="subject">
-  <p class="verdict-word">{{ r.verdict }} <span class="verdict-score">{{ r.score }}/100</span></p>
-  <h1 id="subject" class="subject">{{ r.summary.subject or '(no subject)' }}</h1>
-  <dl class="envelope">
-    <div><dt>From</dt><dd>{{ r.summary.from or '(none)' }}</dd></div>
-    <div><dt>To</dt><dd>{{ r.summary.to or '(none)' }}</dd></div>
-    <div><dt>Date</dt><dd>{{ r.summary.date or '(none)' }}</dd></div>
-    <div><dt>File</dt><dd>{{ row.filename }}, analysed {{ row.created_at.replace('T', ' ').replace('+00:00', ' UTC') }}{% if row.from_history %} (opened from this browser's history){% elif row.id is none %} (not stored on the server){% endif %}</dd></div>
-  </dl>
+  <div class="verdict-mascot">
+    {{ postie(mood, "Postie looks " ~ {"happy": "happy", "worried": "worried", "alarmed": "alarmed"}.get(mood, "curious")) }}
+  </div>
+  <div class="verdict-body">
+    <p class="verdict-word">{{ r.verdict }}</p>
+    <p class="verdict-saying">{{ saying }}</p>
+    <h1 id="subject" class="subject">{{ r.summary.subject or '(no subject)' }}</h1>
+    <dl class="envelope">
+      <div><dt>From</dt><dd>{{ r.summary.from or '(none)' }}</dd></div>
+      <div><dt>To</dt><dd>{{ r.summary.to or '(none)' }}</dd></div>
+      <div><dt>Date</dt><dd>{{ r.summary.date or '(none)' }}</dd></div>
+      <div><dt>File</dt><dd>{{ row.filename }}, analysed {{ row.created_at.replace('T', ' ').replace('+00:00', ' UTC') }}{% if row.from_history %} (opened from this browser's history){% elif row.id is none %} (not stored on the server){% endif %}</dd></div>
+    </dl>
+  </div>
+  <div class="verdict-score" aria-label="Risk score {{ r.score }} out of 100">
+    <span class="score-number">{{ r.score }}</span><span class="score-of">/100</span>
+    <span class="score-label">risk score</span>
+  </div>
 </section>
 
 <section class="risk" aria-label="How the score adds up">
-  <svg class="risk-strip" viewBox="0 0 1000 32" preserveAspectRatio="none" role="img"
+  <svg class="risk-strip" viewBox="0 0 1000 36" preserveAspectRatio="none" role="img"
        aria-label="Risk score {{ r.score }} out of 100 from {{ scored|length }} weighted findings">
-    <rect class="risk-track" x="0" y="0" width="1000" height="32"/>
+    <rect class="risk-track" x="0" y="0" width="1000" height="36" rx="18"/>
     {% set ns = namespace(x=0) %}
     {% for f in scored %}
       {% set w = [f.weight * 10, 1000 - ns.x]|min %}
       {% if w > 0 %}
-      <rect class="seg seg-{{ f.severity }}" x="{{ ns.x }}" y="0" width="{{ [w - 2, 1]|max }}" height="32"><title>{{ f.title }} (+{{ f.weight }})</title></rect>
+      <rect class="seg seg-{{ f.severity }}" x="{{ ns.x }}" y="0" width="{{ [w - 4, 2]|max }}" height="36" rx="6"><title>{{ f.title }} (+{{ f.weight }})</title></rect>
       {% set ns.x = ns.x + w %}
       {% endif %}
     {% endfor %}
   </svg>
   <div class="risk-scale" aria-hidden="true"><span>Clean</span><span>Suspicious</span><span>Likely phishing</span></div>
   <p class="risk-note">
-    {% if scored %}Each segment is one finding, sized by its weight: low 5, medium 15, high 30, critical 50.{% if total > 100 %} Findings total {{ total }}; the score is capped at 100.{% endif %}
+    {% if scored %}Each block is one finding, sized by its weight: low 5, medium 15, high 30, critical 50.{% if total > 100 %} Findings total {{ total }}; the score is capped at 100.{% endif %}
     {% else %}No finding added to the score.{% endif %}
   </p>
 </section>
 
+<section class="section" aria-labelledby="findings-h">
+  <h2 id="findings-h">What Postie found <span class="count">{{ r.findings|length }}</span></h2>
+  {% if r.findings %}
+  <ol class="labels">
+    {% for f in r.findings %}
+    <li class="label label-{{ f.severity }}">
+      <div class="label-top">
+        <span class="sev sev-{{ f.severity }}">{{ f.severity|capitalize }}{% if f.weight %} +{{ f.weight }}{% endif %}</span>
+        <span class="label-cat">{{ f.category }}</span>
+      </div>
+      <h3 class="label-title">{{ f.title }}</h3>
+      <p class="label-detail">{{ f.detail }}</p>
+      {% if f.evidence %}<p class="evidence">{{ f.evidence|defang_text }}</p>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="empty">Nothing suspicious found. That is not a guarantee: check the sender and links yourself if the request is unexpected.</p>
+  {% endif %}
+</section>
+
 <div class="report-grid">
   <div class="report-main">
-    <section class="panel" aria-labelledby="findings-h">
-      <h2 id="findings-h">Findings <span class="count">{{ r.findings|length }}</span></h2>
-      {% if r.findings %}
-      <ol class="ledger">
-        {% for f in r.findings %}
-        <li class="entry entry-{{ f.severity }}">
-          <p class="entry-head"><span class="sev sev-{{ f.severity }}">{{ f.severity|capitalize }}{% if f.weight %}, +{{ f.weight }}{% endif %}</span> <b>{{ f.title }}</b> <span class="muted">{{ f.category }}</span></p>
-          <p>{{ f.detail }}</p>
-          {% if f.evidence %}<p class="evidence">{{ f.evidence|defang_text }}</p>{% endif %}
-        </li>
-        {% endfor %}
-      </ol>
-      {% else %}
-      <p class="empty">Nothing suspicious found. That is not a guarantee: check the sender and links yourself if the request is unexpected.</p>
-      {% endif %}
-    </section>
-
-    <section class="panel" aria-labelledby="urls-h">
+    <section class="card" aria-labelledby="urls-h">
       <h2 id="urls-h">Links <span class="count">{{ r.urls|length }}</span></h2>
       {% if r.urls %}
       <p class="muted">Defanged so they cannot be clicked: <code>hxxp</code> means http and <code>[.]</code> means a dot.</p>
@@ -78,7 +99,7 @@
       {% endif %}
     </section>
 
-    <section class="panel" aria-labelledby="att-h">
+    <section class="card" aria-labelledby="att-h">
       <h2 id="att-h">Attachments <span class="count">{{ r.attachments|length }}</span></h2>
       {% for a in r.attachments %}
       <article class="attachment {% if a.flags %}is-flagged{% endif %}">
@@ -100,35 +121,34 @@
   </div>
 
   <aside class="report-side">
-    <section class="panel" aria-labelledby="auth-h">
-      <h2 id="auth-h">Authentication</h2>
-      <p class="muted">{% if r.auth.authserv_id %}Recorded by <code>{{ r.auth.authserv_id }}</code> on delivery.{% else %}As recorded by the receiving server.{% endif %}</p>
-      <dl class="auth">
+    <section class="card" aria-labelledby="auth-h">
+      <h2 id="auth-h">Postmarks</h2>
+      <p class="muted">SPF, DKIM and DMARC {% if r.auth.authserv_id %}as recorded by <code>{{ r.auth.authserv_id }}</code> on delivery.{% else %}as recorded by the receiving server.{% endif %}</p>
+      <dl class="postmarks">
         {% for m in ('spf', 'dkim', 'dmarc') %}
         {% set e = r.auth.recorded[m] %}
-        <div>
+        <div class="postmark result-{{ e.result.replace(' ', '-') }}">
           <dt>{{ m|upper }}</dt>
-          <dd><span class="result result-{{ e.result.replace(' ', '-') }}">{{ e.result }}</span>
-            <span class="auth-detail">{{ e.detail }}</span></dd>
+          <dd><span class="result">{{ e.result }}</span><span class="auth-detail">{{ e.detail }}</span></dd>
         </div>
         {% endfor %}
       </dl>
       {% if r.auth.live %}
       {% set L = r.auth.live %}
       <h3>Live DNS re-check</h3>
-      <dl class="auth">
-        <div><dt>SPF</dt><dd><span class="result result-{{ L.spf.result }}">{{ L.spf.result }}</span>
+      <dl class="postmarks">
+        <div class="postmark result-{{ L.spf.result }}"><dt>SPF</dt><dd><span class="result">{{ L.spf.result }}</span>
           <span class="auth-detail">{{ L.spf.domain }} from {{ L.ip or 'unknown IP' }}: {{ L.spf.detail }}</span></dd></div>
-        <div><dt>DKIM</dt><dd><span class="result result-{{ L.dkim_result.replace(' ', '-') }}">{{ L.dkim_result }}</span>
+        <div class="postmark result-{{ L.dkim_result.replace(' ', '-') }}"><dt>DKIM</dt><dd><span class="result">{{ L.dkim_result }}</span>
           {% for sig in L.dkim %}<span class="auth-detail">{{ sig.domain }} ({{ sig.selector }}): {{ sig.detail }}</span>{% else %}<span class="auth-detail">no DKIM-Signature header</span>{% endfor %}</dd></div>
-        <div><dt>DMARC</dt><dd><span class="result result-{{ L.dmarc.result }}">{{ L.dmarc.result }}</span>
+        <div class="postmark result-{{ L.dmarc.result }}"><dt>DMARC</dt><dd><span class="result">{{ L.dmarc.result }}</span>
           <span class="auth-detail">{{ L.dmarc.detail }}{% if L.dmarc.policy %}; policy {{ 'sp' if L.dmarc.policy.inherited else 'p' }}={{ L.dmarc.policy.effective or L.dmarc.policy.p }} at {{ L.dmarc.policy.domain }}{% endif %}</span></dd></div>
       </dl>
       {% endif %}
     </section>
 
-    <section class="panel" aria-labelledby="ids-h">
-      <h2 id="ids-h">Sender identities</h2>
+    <section class="card" aria-labelledby="ids-h">
+      <h2 id="ids-h">Who sent it</h2>
       {% set s = r.senders %}
       <dl class="ids">
         <div><dt>From</dt><dd><span class="mono">{{ s.from_address or '(none)' }}</span>{% if s.from_name %}<br><span class="muted">shown as “{{ s.from_name }}”</span>{% endif %}{% if s.lookalike %}<br><span class="tag tag-strong">imitates {{ s.lookalike }}</span>{% endif %}</dd></div>
@@ -138,24 +158,24 @@
       </dl>
     </section>
 
-    <section class="panel" aria-labelledby="hops-h">
-      <h2 id="hops-h">Delivery path</h2>
+    <section class="card" aria-labelledby="hops-h">
+      <h2 id="hops-h">Delivery route</h2>
       {% if r.received %}
-      <p class="muted">Server handoffs from the first to the last.</p>
-      <ol class="hops">
+      <p class="muted">Server handoffs, from the first to the last.</p>
+      <ol class="route">
         {% for h in r.received|reverse %}
-        <li><span class="mono">{{ h.from_host or '?' }}</span>{% if h.ip %} <span class="muted">[{{ h.ip }}]</span>{% endif %}<br>to <span class="mono">{{ h.by_host or '?' }}</span>{% if h.timestamp %}<br><span class="muted">{{ h.timestamp }}</span>{% endif %}</li>
+        <li><span class="mono">{{ h.from_host or '?' }}</span>{% if h.ip %} <span class="muted">[{{ h.ip }}]</span>{% endif %}<br>to <span class="mono">{{ h.by_host or '?' }}</span>{% if h.timestamp %}<br><span class="muted small">{{ h.timestamp }}</span>{% endif %}</li>
         {% endfor %}
       </ol>
       {% else %}
-      <p class="empty">No Received headers, so the delivery path is unknown.</p>
+      <p class="empty">No Received headers, so the delivery route is unknown.</p>
       {% endif %}
     </section>
   </aside>
 </div>
 
-<section class="panel raw" aria-labelledby="raw-h">
-  <h2 id="raw-h">Message content</h2>
+<section class="card raw" aria-labelledby="raw-h">
+  <h2 id="raw-h">Inside the envelope</h2>
   <p class="muted">Shown as plain text with links defanged. The email's HTML is never rendered.</p>
   <details>
     <summary>Text body</summary>
@@ -171,9 +191,11 @@
   {% if row.id is not none %}
   <p><a href="{{ url_for('api_report', analysis_id=row.id) }}" download="phishkit-report-{{ row.id }}.json">Download the full report as JSON</a></p>
   {% else %}
-  <p class="muted">This report is not stored on the server. A copy is saved only in this browser's history, on the Dashboard. For JSON output, post the file to <code>/api/analyze</code>.</p>
+  <p class="muted">This report is not stored on the server. A copy is saved only in this browser's history. For JSON output, post the file to <code>/api/analyze</code>.</p>
   {% endif %}
 </section>
+
+<p class="again"><a class="button" href="{{ url_for('index') }}">Inspect another email</a></p>
 {% if row.save_to_browser %}
 {# Read by app.js and saved to this browser's localStorage. tojson escapes <, > and & so the
    email's content cannot close this block; type="application/json" is data, never executed. #}
