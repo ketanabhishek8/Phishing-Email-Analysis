@@ -150,6 +150,11 @@ class WebTests(unittest.TestCase):
         resp = self.client.post("/samples/..%2F..%2Fetc%2Fpasswd", data={"csrf_token": self.csrf()})
         self.assertEqual(resp.status_code, 404)
 
+    def test_favicon_ico_points_at_the_svg_icon(self):
+        resp = self.client.get("/favicon.ico")
+        self.assertEqual(resp.status_code, 301)
+        self.assertTrue(resp.headers["Location"].endswith("/static/favicon.svg"))
+
     def test_unknown_report_404(self):
         self.assertEqual(self.client.get("/report/12345").status_code, 404)
 

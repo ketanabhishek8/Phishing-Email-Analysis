@@ -347,6 +347,11 @@ def create_app(db_path: str | None = None, testing: bool = False, hosted: bool |
             abort(404)
         return run_and_show(name, (SAMPLES_DIR / name).read_bytes())
 
+    @app.get("/favicon.ico")
+    def favicon():
+        # Browsers ask for this path even when the page names an SVG icon.
+        return redirect(url_for("static", filename="favicon.svg"), code=301)
+
     @app.post("/history/view")
     def view_saved():
         """Re-render a report the visitor's browser saved in its own history (hosted mode).

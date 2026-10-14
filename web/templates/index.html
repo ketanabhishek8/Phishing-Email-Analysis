@@ -6,7 +6,7 @@
     <h1 id="desk-h" class="desk-title">Not sure about an email?</h1>
     <p class="lede">Give it to Postie. PhishKit checks who really sent it, where its links go and what its attachments are, then explains what it found in plain words.</p>
 
-    <form class="upload" action="{{ url_for('analyze_upload') }}" method="post" enctype="multipart/form-data" data-loading data-upload>
+    <form id="upload-form" class="upload" action="{{ url_for('analyze_upload') }}" method="post" enctype="multipart/form-data" data-loading data-upload>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="dropzone" for="file" data-dropzone>
         <svg class="dropzone-icon" viewBox="0 0 48 40" aria-hidden="true">
@@ -64,21 +64,20 @@
 <section class="samples" aria-labelledby="samples-h">
   <div class="section-head">
     <h2 id="samples-h">No email handy? Try a sample</h2>
-    <p class="muted">Harmless re-creations of real tricks. They use reserved test domains and addresses.</p>
+    <p class="muted">Harmless re-creations of real tricks. They use reserved test domains and addresses, and get the same extra checks you switch on above.</p>
   </div>
+  {# Each button submits the upload form to the sample's address, so the extra-check
+     switches travel with it. formnovalidate skips the form's "choose a file" requirement. #}
   <ul class="sample-list">
     {% for name, title in samples %}
     <li>
-      <form action="{{ url_for('analyze_sample', name=name) }}" method="post" data-loading>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="sample" type="submit">
-          <span class="sample-text">
-            <span class="sample-title">{{ title }}</span>
-            <code class="sample-file">{{ name }}</code>
-          </span>
-          <svg class="sample-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
-        </button>
-      </form>
+      <button class="sample" type="submit" form="upload-form" formaction="{{ url_for('analyze_sample', name=name) }}" formnovalidate data-sample>
+        <span class="sample-text">
+          <span class="sample-title">{{ title }}</span>
+          <code class="sample-file">{{ name }}</code>
+        </span>
+        <svg class="sample-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
+      </button>
     </li>
     {% endfor %}
   </ul>

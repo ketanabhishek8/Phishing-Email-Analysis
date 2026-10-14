@@ -126,6 +126,14 @@
       if (hint) hint.hidden = has;
     };
     input.addEventListener("change", sync);
+    // A sample button submits this form too (for the extra-check switches). Leave out any
+    // file already chosen so it is not uploaded for nothing; pageshow restores it.
+    if (form) {
+      form.addEventListener("submit", function (e) {
+        if (e.submitter && e.submitter.hasAttribute("data-sample")) input.disabled = true;
+      });
+      window.addEventListener("pageshow", function () { input.disabled = false; });
+    }
     ["dragenter", "dragover"].forEach(function (type) {
       zone.addEventListener(type, function (e) {
         e.preventDefault();

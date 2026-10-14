@@ -120,6 +120,35 @@ class VTReportPageTests(unittest.TestCase):
         self.assertIn("no links or attachments to look up", box)
 
 
+class SampleOptionsTests(unittest.TestCase):
+    """Sample buttons submit the upload form, so the extra-check switches apply to them."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.client = create_app(db_path=str(Path(self.tmp) / "t.db"), testing=True).test_client()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def test_sample_buttons_belong_to_the_upload_form(self):
+        page = self.client.get("/").get_data(as_text=True)
+        self.assertIn('<form id="upload-form"', page)
+        buttons = re.findall(r'<button class="sample"[^>]*>', page)
+        self.assertTrue(buttons)
+        for b in buttons:
+            self.assertIn('form="upload-form"', b)
+            self.assertIn('formaction="/samples/', b)
+            self.assertIn("formnovalidate", b)
+
+    def test_sample_route_honours_the_virustotal_switch(self):
+        token = re.search(r'name="csrf_token" value="([^"]+)"', self.client.get("/").get_data(as_text=True)).group(1)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("VT_API_KEY", None)
+            resp = self.client.post("/samples/02-paypal-spoof-punycode.eml", data={"csrf_token": token, "vt": "1"})
+        page = self.client.get(resp.headers["Location"]).get_data(as_text=True)
+        self.assertIn('class="card vt-card"', page)
+
+
 class VTTextOutputTests(unittest.TestCase):
     def test_cli_text_shows_url_results(self):
         url = next(u for u in urls_of(PAYPAL) if "198.51.100.23" in u)
