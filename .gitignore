@@ -7,3 +7,8 @@ instance/
 
 # Real phishing emails fetched by scripts/fetch_corpus.py (not republished)
 samples/corpus/
+
+# Local secrets such as VT_API_KEY
+.env
+.env.*
+!.env.example
