@@ -109,6 +109,16 @@ def render_text(report: Report, color: bool = True) -> str:
     if sd.get("lookalike"):
         field("Imitates", sd["lookalike"])
 
+    def vt_lines(vt):
+        if not isinstance(vt, dict):
+            return
+        if vt.get("status") == "found":
+            style = "high" if vt.get("malicious") or vt.get("suspicious") else "dim"
+            lines.append(p(f"      VirusTotal: {vt['malicious']} malicious / {vt['suspicious']} suspicious", style))
+            lines.append(p(f"      {vt['link']}", "dim"))
+        elif vt.get("status") == "not_found":
+            lines.append(p("      VirusTotal: not seen before", "dim"))
+
     heading(f"URLs ({len(data["urls"])})")
     if not data["urls"]:
         lines.append(p("  none", "dim"))
@@ -116,6 +126,7 @@ def render_text(report: Report, color: bool = True) -> str:
         flags = ", ".join(u.get("flags") or []) or "no flags"
         lines.append(f"  • {u['defanged']}")
         lines.append(p(f"      {flags}", "dim" if not u.get("flags") else "medium"))
+        vt_lines(u.get("vt"))
 
     heading(f"Attachments ({len(data["attachments"])})")
     if not data["attachments"]:
@@ -127,9 +138,7 @@ def render_text(report: Report, color: bool = True) -> str:
         lines.append(f"      SHA256  {a['sha256']}")
         if a.get("flags"):
             lines.append(p(f"      flags: {', '.join(a['flags'])}", "medium"))
-        if a.get("vt", {}).get("status") == "found":
-            vt = a["vt"]
-            lines.append(f"      VirusTotal: {vt['malicious']} malicious / {vt['suspicious']} suspicious")
+        vt_lines(a.get("vt"))
 
     findings = [_Finding(f) for f in data["findings"]]
     heading(f"Findings ({len(findings)})")

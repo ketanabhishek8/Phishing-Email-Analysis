@@ -449,7 +449,21 @@ main { max-width: 72rem; margin: 0 auto; padding: 0.5rem clamp(1rem, 4vw, 2rem) 
 .link-url { margin: 0 0 0.25rem; font-size: 0.86rem; }
 .link.is-flagged .link-url { color: var(--phishing); }
 .link-meta { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; font-size: 0.84rem; color: var(--muted); margin: 0; }
-.vt { font-size: 0.85rem; font-weight: 600; margin: 0.45rem 0 0; }
+.vt { font-size: 0.85rem; font-weight: 550; margin: 0.45rem 0 0; color: var(--ink-2); }
+.vt a { font-weight: 550; }
+
+/* VirusTotal: what was looked up and what came back */
+.vt-card > .muted { font-size: 0.9rem; }
+.vt-stats { list-style: none; margin: 0.9rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.vt-stat { font-size: 0.86rem; font-weight: 550; padding: 0.4rem 0.75rem; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2); }
+.vt-stat.is-flagged { background: var(--phishing-wash); border-color: transparent; color: var(--phishing); }
+.vt-flagged { list-style: none; margin: 0.9rem 0 0; padding: 0; display: grid; gap: 0.6rem; }
+.vt-flagged li { display: grid; gap: 0.15rem; padding: 0.7rem 0.85rem; border-radius: var(--r-sm);
+  background: var(--phishing-wash); overflow-wrap: anywhere; }
+.vt-flagged .mono { color: var(--phishing); font-size: 0.82rem; }
+.vt-flag-meta { font-size: 0.85rem; color: var(--ink-2); }
+.vt-note { margin: 0.9rem 0 0; font-size: 0.86rem; color: var(--suspicious); }
 
 .attachment { padding: 0.9rem 0; border-top: 1px solid var(--line); }
 .attachment:first-of-type { border-top: 0; padding-top: 0; }

@@ -132,9 +132,23 @@ When it detects Vercel (or `PHISHKIT_HOSTED=1`), the app switches to **hosted mo
 A public deployment means uploaded emails are processed on the host's servers, so use it for
 demos and samples, and run PhishKit locally for real or confidential mail.
 
-To enable VirusTotal, get a free API key and start the app (or CLI) with
-`VT_API_KEY=your-key python -m web`. The free tier allows 4 lookups per minute; PhishKit
-stops cleanly and says so when it hits the limit.
+To enable VirusTotal, get a free API key and start the app (or CLI) with it in the
+environment. Locally you can keep it in a git-ignored `.env` file (`VT_API_KEY=your-key`) and
+load it when starting the app:
+
+```bash
+set -a && source .env && set +a && python -m web --port 8000
+```
+
+On Vercel, add it under Project Settings → Environment Variables (marked Sensitive), never in
+`vercel.json` or the repository.
+
+Results appear in a **VirusTotal** box on the report: how many links and attachments were
+checked, how many were flagged, known and clean, or never seen before, with a "View on
+VirusTotal" link for each item VirusTotal knows. Flagged items also become findings that count
+towards the score. Only existing reports are read; nothing is uploaded or submitted for
+scanning. The free tier allows 4 lookups per minute; PhishKit stops cleanly and says how many
+items were left unchecked when it hits the limit.
 
 ## Samples
 

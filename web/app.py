@@ -243,6 +243,46 @@ def create_app(db_path: str | None = None, testing: bool = False, hosted: bool |
     def verdict_class(verdict: str) -> str:
         return {"Clean": "clean", "Suspicious": "suspicious", "Likely phishing": "phishing"}.get(verdict, "")
 
+    vt_page = re.compile(r"https://www\.virustotal\.com/gui/(?:file|url)/[A-Za-z0-9_-]{1,4096}")
+
+    @app.template_filter("vt_link")
+    def vt_link(vt) -> str:
+        """The VirusTotal page for a looked-up item. Saved history entries come back from the
+        visitor's browser, so anything that is not a VirusTotal page address is dropped."""
+        link = vt.get("link") if isinstance(vt, dict) else None
+        return link if isinstance(link, str) and vt_page.fullmatch(link) else ""
+
+    @app.template_filter("vt_summary")
+    def vt_summary(r) -> dict | None:
+        """What the VirusTotal lookups covered, or None when they were not requested."""
+        def count(value):
+            return value if isinstance(value, int) and value >= 0 else 0
+
+        def lookable(u):
+            return str(u.get("url", "")).lower().startswith(("http://", "https://"))
+
+        options = (r.get("summary") or {}).get("options") or {}
+        items = ([("link", u.get("defanged", ""), u) for u in r["urls"] if lookable(u)]
+                 + [("attachment", a.get("filename", ""), a) for a in r["attachments"]])
+        checked = [(kind, label, x["vt"]) for kind, label, x in items if isinstance(x.get("vt"), dict)]
+        if not options.get("vt") and not checked:
+            return None
+        titles = {f.get("title") for f in r["findings"] if f.get("category") == "threat-intel"}
+        found = [c for c in checked if c[2].get("status") == "found"]
+        flagged = [c for c in found if count(c[2].get("malicious")) or count(c[2].get("suspicious"))]
+        return {
+            "skipped": "VirusTotal skipped" in titles,
+            "stopped": ("rate_limit" if "VirusTotal rate limit reached" in titles
+                        else "error" if "VirusTotal lookup failed" in titles else ""),
+            "has_items": bool(items),
+            "links": sum(kind == "link" for kind, _, _ in checked),
+            "attachments": sum(kind == "attachment" for kind, _, _ in checked),
+            "flagged": flagged,
+            "clean": len(found) - len(flagged),
+            "unknown": sum(c[2].get("status") == "not_found" for c in checked),
+            "unchecked": len(items) - len(checked),
+        }
+
     @app.template_filter("main_reasons")
     def main_reasons(findings, limit: int = 3) -> list:
         """The heaviest scored findings. Among equally heavy ones, prefer categories not shown
