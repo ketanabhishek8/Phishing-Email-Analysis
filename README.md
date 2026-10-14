@@ -95,7 +95,9 @@ Its expressions come from eyelids, brows, pupils and mouth working together: it 
 pointer on the upload page, perks up when you drag a file over, walks on the spot with a parcel
 and a magnifying glass while an email is analysed, then looks happy, worried or alarmed to match
 the verdict, and shrugs on error pages. Animations respect the system's reduce-motion setting.
-The page uses the system font and makes no external requests.
+Headings are set in [Fraunces](https://github.com/undercasetype/Fraunces) and text in
+[Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans), both bundled under the SIL Open
+Font License (`public/static/fonts/OFL-*.txt`), so the page still makes no external requests.
 
 There is also a JSON API:
 
@@ -177,7 +179,7 @@ phishkit/
   analyzer.py      runs every module and builds the Report
   render.py, cli.py
 web/               Flask app (local and hosted modes), SQLite store, templates
-public/static/     CSS, JS and icon (served by the CDN when hosted; no external assets)
+public/static/     CSS, JS, icon and fonts (served by the CDN when hosted; no external assets)
 app.py             WSGI entry point for hosting (Vercel, gunicorn)
 ```
 

@@ -1,7 +1,42 @@
 /* PhishKit: a calm post-office counter, with Postie as the only character.
    Warm paper and ink; Postie's blue is the brand colour; green, amber and red appear only
-   where they mean something. --display is the heading font: it uses the system font until
-   the team picks one, and can then be swapped in one place. */
+   where they mean something. Headings are set in Fraunces, an editorial serif; everything
+   else in Plus Jakarta Sans. */
+
+/* Fraunces (headings) and Plus Jakarta Sans (text), bundled under the SIL Open Font
+   License (fonts/OFL-*.txt). The Latin Extended files load only when a page needs them. */
+@font-face {
+  font-family: "Fraunces";
+  src: url("fonts/fraunces-latin.woff2") format("woff2");
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Fraunces";
+  src: url("fonts/fraunces-latin-ext.woff2") format("woff2");
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("fonts/plus-jakarta-sans-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("fonts/plus-jakarta-sans-latin-ext.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
 :root {
   --paper: #f6f4ef;
@@ -32,8 +67,8 @@
   --low: #3466a8;
   --low-wash: #e8eef8;
 
-  --display: ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Display", "Segoe UI", sans-serif;
-  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  --display: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
+  --sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   --measure: 68ch;
@@ -92,8 +127,12 @@ body {
 a { color: var(--brand); text-underline-offset: 3px; text-decoration-thickness: 1px; }
 a:hover { text-decoration-thickness: 2px; }
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
-h1, h2, h3 { font-family: var(--display); font-weight: 650; line-height: 1.15; margin: 0 0 0.5em; letter-spacing: -0.015em; }
-h1 { font-size: 2.1rem; letter-spacing: -0.025em; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.15; margin: 0 0 0.5em; letter-spacing: -0.01em;
+  font-optical-sizing: auto; }
+h1 { font-size: 2.1rem; letter-spacing: -0.015em; }
+h1, h2 { text-wrap: balance; }
+/* Small headings stay in the text face: the serif is for display sizes. */
+.label-title, .todo h2, .reasons h2, .card h3, .attachment h3 { font-family: var(--sans); font-weight: 650; letter-spacing: -0.005em; }
 h2 { font-size: 1.4rem; }
 h3 { font-size: 1.1rem; }
 p { margin: 0 0 0.8em; }
@@ -113,7 +152,7 @@ details > summary { cursor: pointer; }
   max-width: 72rem; margin: 0 auto; padding: 1.25rem clamp(1rem, 4vw, 2rem);
 }
 .brand { display: inline-flex; align-items: center; gap: 0.55rem; color: var(--ink); text-decoration: none;
-  font: 700 1.2rem/1 var(--display); letter-spacing: -0.02em; }
+  font: 600 1.3rem/1 var(--display); letter-spacing: -0.01em; }
 .brand-mark { width: 34px; height: 28px; }
 .brand-env { fill: var(--postie); }
 .brand-flap { fill: none; stroke: var(--postie-deep); stroke-width: 2.2; stroke-linejoin: round; }
@@ -168,8 +207,8 @@ main { max-width: 72rem; margin: 0 auto; padding: 0.5rem clamp(1rem, 4vw, 2rem) 
 .desk { display: grid; gap: 1.5rem 3.5rem; align-items: center; grid-template-columns: minmax(0, 1fr);
   padding: 2.5rem 0 1rem; }
 @media (min-width: 58rem) { .desk { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); } }
-.desk-title { font-size: clamp(2.3rem, 5.2vw, 3.6rem); font-weight: 700; line-height: 1.03;
-  letter-spacing: -0.035em; margin-bottom: 0.4em; }
+.desk-title { font-size: clamp(2.4rem, 5.4vw, 3.8rem); font-weight: 600; line-height: 1.04;
+  letter-spacing: -0.02em; margin-bottom: 0.4em; }
 .lede { font-size: 1.15rem; color: var(--muted); max-width: 44ch; line-height: 1.55; }
 
 .upload { margin-top: 1.9rem; padding: 0.5rem; background: var(--surface); border: 1px solid var(--line);
@@ -189,7 +228,7 @@ main { max-width: 72rem; margin: 0 auto; padding: 0.5rem clamp(1rem, 4vw, 2rem) 
   transition: transform 0.5s var(--ease-spring), stroke 0.3s var(--ease-out); }
 .dropzone:hover .dropzone-icon, .dropzone.is-over .dropzone-icon { stroke: var(--brand); transform: translateY(-3px); }
 .dropzone.has-file .dropzone-icon { stroke: var(--clean); }
-.dropzone-text { font: 600 1.12rem/1.3 var(--display); overflow-wrap: anywhere; }
+.dropzone-text { font: 600 1.05rem/1.3 var(--sans); overflow-wrap: anywhere; }
 .dropzone-sub { color: var(--muted); font-size: 0.9rem; }
 .dropzone-pick { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
 .dropzone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
@@ -290,9 +329,9 @@ main { max-width: 72rem; margin: 0 auto; padding: 0.5rem clamp(1rem, 4vw, 2rem) 
 .verdict-head { display: grid; gap: 1rem 1.75rem; align-items: center; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 52rem) { .verdict-head { grid-template-columns: 170px minmax(0, 1fr) auto; } }
 .verdict-mascot .postie { width: 165px; display: block; margin: 0 auto; }
-.verdict-word { font: 700 clamp(1.9rem, 4vw, 2.6rem)/1.05 var(--display); letter-spacing: -0.03em; color: var(--v); margin: 0 0 0.3rem; }
+.verdict-word { font: 600 clamp(2rem, 4.2vw, 2.8rem)/1.05 var(--display); letter-spacing: -0.015em; color: var(--v); margin: 0 0 0.3rem; }
 .verdict-saying { font-size: 1.05rem; font-weight: 500; color: var(--ink-2); margin-bottom: 1rem; }
-.subject { font-size: 1.3rem; max-width: 46ch; overflow-wrap: anywhere; margin-bottom: 0.6rem; letter-spacing: -0.015em; }
+.subject { font: 600 1.15rem/1.35 var(--sans); max-width: 46ch; overflow-wrap: anywhere; margin-bottom: 0.6rem; letter-spacing: -0.01em; }
 .envelope { display: grid; gap: 0.15rem; margin: 0; font-size: 0.88rem; }
 .envelope div { display: grid; grid-template-columns: 3.4rem 1fr; gap: 0.6rem; }
 .envelope dt { color: var(--muted); }
@@ -300,7 +339,7 @@ main { max-width: 72rem; margin: 0 auto; padding: 0.5rem clamp(1rem, 4vw, 2rem) 
 .verdict-score { text-align: right; align-self: start; }
 .verdict-score p { margin: 0; }
 .score-figure { white-space: nowrap; }
-.score-number { font: 700 3.4rem/1 var(--display); letter-spacing: -0.04em; color: var(--v); font-variant-numeric: tabular-nums; }
+.score-number { font: 600 3.5rem/1 var(--display); letter-spacing: -0.03em; color: var(--v); font-variant-numeric: tabular-nums; }
 .score-of { font-size: 1rem; color: var(--muted); margin-left: 0.15rem; }
 .score-label { font-size: 0.82rem; color: var(--muted); }
 @media (max-width: 51.99rem) {
@@ -461,7 +500,7 @@ main { max-width: 72rem; margin: 0 auto; padding: 0.5rem clamp(1rem, 4vw, 2rem) 
 /* ---------------------------------------------------------------- history */
 
 .intro { max-width: var(--measure); margin: 1.5rem 0 1.5rem; }
-.intro h1 { font-size: clamp(2rem, 4vw, 2.6rem); font-weight: 700; letter-spacing: -0.03em; }
+.intro h1 { font-size: clamp(2.1rem, 4.2vw, 2.8rem); letter-spacing: -0.02em; }
 .tally { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.2rem; font-size: 1rem; color: var(--muted); }
 .tally-item { display: inline-flex; align-items: center; color: var(--ink); }
 .browser-history > .muted { max-width: var(--measure); }
@@ -497,7 +536,7 @@ main { max-width: 72rem; margin: 0 auto; padding: 0.5rem clamp(1rem, 4vw, 2rem) 
 .error-page { display: grid; gap: 1.5rem 2.5rem; align-items: center; grid-template-columns: minmax(0, 1fr); padding: 3rem 0; }
 @media (min-width: 46rem) { .error-page { grid-template-columns: 240px minmax(0, 1fr); } }
 .error-page .postie { width: 220px; justify-self: center; }
-.error-page h1 { font-size: clamp(1.9rem, 4vw, 2.5rem); font-weight: 700; letter-spacing: -0.03em; }
+.error-page h1 { font-size: clamp(2rem, 4.2vw, 2.7rem); letter-spacing: -0.02em; }
 
 @media (max-width: 40rem) {
   .history thead { display: none; }
@@ -514,7 +553,7 @@ main { max-width: 72rem; margin: 0 auto; padding: 0.5rem clamp(1rem, 4vw, 2rem) 
   border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow-lg); padding: 1.6rem 2.2rem 1.9rem;
   width: min(25rem, 100%); }
 .loader-card .postie { width: 220px; }
-.loader-title { font: 650 1.3rem/1.2 var(--display); letter-spacing: -0.02em; margin: 0.3rem 0 0; }
+.loader-title { font: 600 1.4rem/1.2 var(--display); letter-spacing: -0.01em; margin: 0.3rem 0 0; }
 .loader-step { color: var(--muted); font-size: 0.95rem; min-height: 1.5em; margin: 0; }
 .loader-track { position: relative; display: block; width: 10rem; height: 4px; margin-top: 0.7rem; overflow: hidden;
   border-radius: 999px; background: var(--line); }
